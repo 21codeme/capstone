@@ -1,0 +1,97 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ===== MODULE SYSTEM =====
+    
+    // Module files - students can download, instructors can upload/manage
+    match /modules/{moduleTitle}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        // Only instructors can upload modules
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor' &&
+        request.resource.size < 100 * 1024 * 1024 && // 100MB max
+        request.resource.contentType.matches('application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|image/.*|video/.*|audio/.*');
+      allow delete: if request.auth != null && 
+        // Only instructors can delete modules
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // ===== PROFILE PICTURES =====
+    
+    // User profile pictures - users can manage their own
+    match /profilePictures/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.uid == userId &&
+        request.resource.size < 10 * 1024 * 1024 && // 10MB max
+        request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && 
+        request.auth.uid == userId;
+    }
+    
+    // ===== QUIZ MEDIA =====
+    
+    // Quiz media files - students can view, instructors can upload/manage
+    match /quizzes/{quizId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        // Only instructors can upload quiz media
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor' &&
+        request.resource.size < 50 * 1024 * 1024 && // 50MB max
+        request.resource.contentType.matches('image/.*|video/.*|audio/.*|application/pdf');
+      allow delete: if request.auth != null && 
+        // Only instructors can delete quiz media
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // ===== ASSIGNMENT FILES =====
+    
+    // Assignment files - students can upload their own, instructors can manage all
+    match /assignments/{assignmentId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        // Students can upload their own submissions, instructors can upload assignment files
+        (request.auth.uid == resource.data.studentId || 
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor') &&
+        request.resource.size < 50 * 1024 * 1024 && // 50MB max
+        request.resource.contentType.matches('application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|image/.*|video/.*|audio/.*');
+      allow delete: if request.auth != null && 
+        // Students can delete their own, instructors can delete any
+        (request.auth.uid == resource.data.studentId || 
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor');
+    }
+    
+    // ===== COURSE MATERIALS =====
+    
+    // Course materials - students can download, instructors can manage
+    match /courses/{courseId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        // Only instructors can upload course materials
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor' &&
+        request.resource.size < 100 * 1024 * 1024 && // 100MB max
+        request.resource.contentType.matches('application/pdf|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document|image/.*|video/.*|audio/.*');
+      allow delete: if request.auth != null && 
+        // Only instructors can delete course materials
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // ===== TEMPORARY UPLOADS =====
+    
+    // Temporary uploads for processing - users can manage their own
+    match /temp/{userId}/{fileName} {
+      allow read, write, delete: if request.auth != null && 
+        request.auth.uid == userId &&
+        request.resource.size < 50 * 1024 * 1024; // 50MB max
+    }
+    
+    // ===== DEFAULT RULE =====
+    
+    // Deny all other access by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

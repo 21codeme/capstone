@@ -1,0 +1,355 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'admin';
+    }
+    
+    function isTeacher() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'teacher';
+    }
+    
+    function isStudent() {
+      return isAuthenticated() && 
+             request.auth.token.role == 'student';
+    }
+
+    // Helper: check if a student has already answered a quiz
+    function hasAnsweredQuiz(studentId, quizId) {
+      return exists(/databases/$(database)/documents/studentScores/$(studentId + '_' + quizId)) &&
+             get(/databases/$(database)/documents/studentScores/$(studentId + '_' + quizId)).data.hasAnswered == true;
+    }
+    
+    // Validate email format
+    function isValidEmail(email) {
+      return email != null && 
+             email is string &&
+             email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+    }
+    
+    // Validate user data on create
+    function isValidUserCreate(data) {
+      return data.keys().hasAll(['email', 'firstName', 'lastName', 'course', 'year', 'section']) &&
+             data.keys().hasNone(['uid', 'createdAt', 'updatedAt', 'verifiedAt']) &&
+             isValidEmail(data.email) &&
+             data.firstName is string && data.firstName.size() > 0 &&
+             data.lastName is string && data.lastName.size() > 0 &&
+             data.course is string && data.course.size() > 0 &&
+             data.year is string && data.year in ['1', '2', '3', '4'] &&
+             data.section is string && data.section.size() > 0 &&
+             data.accountStatus == 'pending';
+    }
+    
+    // Validate user data on update
+    function isValidUserUpdate(data) {
+      return !data.keys().hasAny(['password', 'verificationCode', 'verificationExpiry']) ||
+             (request.auth.token.role == 'admin' || isOwner(data.uid));
+    }
+    
+    // Public access rules
+    match /public/{document=**} {
+      allow read: if true;
+    }
+    
+    // User authentication rules
+    match /users/{userId} {
+      // Allow read for authenticated users (own profile or admin/teacher)
+      allow read: if isAuthenticated() && 
+                     (isOwner(userId) || isAdmin() || isTeacher());
+      
+      // Allow authenticated users to create/write their own user document (simplified for testing)
+      allow create, write: if isAuthenticated() && 
+                           request.auth.uid == userId;
+      
+      // Allow update for owner or admin
+      allow update: if isAuthenticated() && 
+                      (isOwner(userId) || isAdmin()) &&
+                      isValidUserUpdate(request.resource.data);
+      
+      // Allow delete only for admin
+      allow delete: if isAdmin();
+      
+      // Subcollection rules
+      match /{subcollection}/{document} {
+        allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isTeacher());
+        allow write: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      }
+    }
+    
+    // Pending users (email-based document IDs during registration)
+    match /users/{email} {
+      // Allow read for verification purposes
+      allow read: if true;
+      
+      // Allow creation of pending user documents during registration
+      // More flexible validation to accommodate Cloud Function data structure
+      allow create: if request.resource.data.accountStatus == 'pending' &&
+                      request.resource.data.keys().hasAll(['email', 'firstName', 'lastName', 'accountStatus', 'verificationCode', 'verificationExpiry']) &&
+                      isValidEmail(request.resource.data.email) &&
+                      request.resource.data.role in ['student', 'instructor'];
+      
+      // Allow limited updates for verification code resend (for pending users)
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['verificationCode', 'verificationExpiry', 'updatedAt']) &&
+                      resource.data.accountStatus == 'pending';
+      
+      // No delete - only through Cloud Functions
+      allow delete: if false;
+    }
+    
+    // Courses collection
+    match /courses/{courseId} {
+      allow read: if true; // Public read access
+      allow write: if isAdmin(); // Only admin can write
+    }
+    
+    // Attendance records
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated() && 
+                     (isAdmin() || isTeacher() || 
+                      (isStudent() && resource.data.studentId == request.auth.uid));
+      allow create: if isAuthenticated() && (isAdmin() || isTeacher());
+      allow update: if isAuthenticated() && (isAdmin() || isTeacher());
+      allow delete: if isAdmin();
+    }
+    
+    // Workout/exercise data
+    match /workouts/{workoutId} {
+      allow read: if isAuthenticated() && 
+                     (isOwner(resource.data.userId) || isAdmin() || isTeacher());
+      allow create: if isAuthenticated() && 
+                      (isOwner(request.resource.data.userId) || isAdmin());
+      allow update: if isAuthenticated() && 
+                      (isOwner(resource.data.userId) || isAdmin());
+      allow delete: if isAuthenticated() && 
+                      (isOwner(resource.data.userId) || isAdmin());
+    }
+    
+    // Health metrics
+    match /healthMetrics/{metricId} {
+      allow read: if isAuthenticated() && 
+                     (isOwner(resource.data.userId) || isAdmin() || isTeacher());
+      allow create: if isAuthenticated() && 
+                      (isOwner(request.resource.data.userId) || isAdmin());
+      allow update: if isAuthenticated() && 
+                      (isOwner(resource.data.userId) || isAdmin());
+      allow delete: if isAuthenticated() && 
+                      (isOwner(resource.data.userId) || isAdmin());
+    }
+
+    // BMI Records - User-based access
+    match /bmi_records/{recordId} {
+      allow read: if isAuthenticated() && 
+                     (isOwner(recordId) || isAdmin() || isTeacher());
+      allow create: if isAuthenticated() && 
+                      (isOwner(recordId) || isAdmin());
+      allow update: if isAuthenticated() && 
+                      (isOwner(recordId) || isAdmin());
+      allow delete: if isAuthenticated() && 
+                      (isOwner(recordId) || isAdmin());
+      
+      // BMI History subcollection
+      match /history/{historyId} {
+        allow read: if isAuthenticated() && 
+                       (isOwner(recordId) || isAdmin() || isTeacher());
+        allow create: if isAuthenticated() && 
+                        (isOwner(recordId) || isAdmin());
+        allow update: if isAuthenticated() && 
+                        (isOwner(recordId) || isAdmin());
+        allow delete: if isAuthenticated() && 
+                        (isOwner(recordId) || isAdmin());
+      }
+    }
+    
+    // ===== MODULE SYSTEM =====
+    
+    // Modules collection - everyone can read, instructors can create/edit
+    match /modules/{moduleId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+      
+      // Allow instructors to update all fields
+      allow update: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+      
+      // Allow students to update only statistics fields (downloads, views)
+      allow update: if isAuthenticated() && 
+        isStudent() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['downloads', 'views']);
+    }
+    
+    // Student modules collection - ALL authenticated users can read
+    match /studentModules/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+
+    // ===== TARGETED QUIZ DATABASE =====
+    // courseQuizzes: quizzes visible only to the targeted course/year/section and instructors
+    match /courseQuizzes/{quizId} {
+      // Instructors can create/update/delete targeted quizzes
+      allow create, update, delete: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          // New schema: instructors have isStudent == false
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isStudent == false ||
+          // Legacy schema: role == 'instructor'
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'
+        );
+
+      // Read access: instructors OR students whose profile matches course/year/section
+      allow read: if isAuthenticated() && (
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            // New schema: instructors have isStudent == false
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isStudent == false ||
+            // Legacy schema: role == 'instructor'
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'
+          )
+        ) || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            // New schema: students have isStudent == true
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isStudent == true ||
+            // Legacy schema: role == 'student'
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student'
+          ) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.course == resource.data.course &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.year == resource.data.year &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.section == resource.data.section
+        )
+      );
+    }
+
+    // ===== QUIZ ATTEMPTS =====
+    // Students can create/read/update their own attempts; instructors/admins can read all
+    match /quizAttempts/{docId} {
+      // TEMP: Allow create without auth to unblock flow
+      // Note: This bypass is for testing; restrict in production
+      allow create: if true;
+
+      // Keep read scoped to authenticated users
+      allow read: if isAuthenticated();
+
+      // Allow limited updates: status/timestamps for authenticated users
+      allow update: if isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']);
+
+      // Restrict deletes to instructors/admins
+      allow delete: if isAuthenticated() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor' ||
+          isAdmin()
+        )
+      );
+    }
+
+    // ===== QUIZZES RECORDS =====
+    // Simple reporting collection for student quiz completion and score
+    match /quizzes_records/{recordId} {
+      // TEMP: Allow create without auth to unblock flow
+      allow create: if true;
+
+      // Allow read to authenticated users (keep some guardrails)
+      allow read: if isAuthenticated();
+
+      // Restrict update/delete to instructors/admins
+      allow update, delete: if isAuthenticated() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor' ||
+          isAdmin()
+        )
+      );
+    }
+
+    // ===== STUDENT SCORES =====
+    // Store summarized score records with student details for analytics and tracking
+    match /studentScores/{scoreId} {
+      // TEMP: Allow create without auth to unblock flow
+      allow create: if true;
+
+      // Keep read to authenticated users
+      allow read: if isAuthenticated();
+
+      // Allow limited updates for authenticated users
+      allow update: if isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt','status','percentage','passed','timeTakenMinutes'
+        ]);
+
+      // Delete restricted to instructors/admins
+      allow delete: if isAuthenticated() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor' ||
+          isAdmin()
+        )
+      );
+    }
+
+    // ===== SECTION MANAGEMENT =====
+    match /sections/{sectionId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.instructorId == request.auth.uid || 
+         exists(/databases/$(database)/documents/sectionEnrollments/$(request.auth.uid + '_' + sectionId)));
+      allow create, update, delete: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    match /sectionEnrollments/{enrollmentId} {
+      allow read: if isAuthenticated() && 
+        (enrollmentId == request.auth.uid + '_' + resource.data.sectionId || 
+         (exists(/databases/$(database)/documents/sections/$(resource.data.sectionId)) &&
+          get(/databases/$(database)/documents/sections/$(resource.data.sectionId)).data.instructorId == request.auth.uid));
+      allow create, update, delete: if isAuthenticated() && 
+        (enrollmentId == request.auth.uid + '_' + resource.data.sectionId || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+    }
+
+    // System settings
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Logs and analytics (admin only)
+    match /logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Verification codes (temporary storage)
+    match /verificationCodes/{codeId} {
+      // No direct access - only through Cloud Functions
+      allow read, write: if false;
+    }
+    
+    // Rate limiting counters
+    match /rateLimits/{counterId} {
+      // No direct access - only through Cloud Functions
+      allow read, write: if false;
+    }
+  }
+}

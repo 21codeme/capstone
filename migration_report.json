@@ -1,0 +1,9 @@
+{
+  "totalUsers": 11,
+  "uidBasedUsers": 11,
+  "studentIdBasedUsers": 0,
+  "orphanedDocuments": 0,
+  "missingAuthUsers": 0,
+  "relatedCollectionIssues": 128,
+  "errors": []
+}

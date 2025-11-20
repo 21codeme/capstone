@@ -1,0 +1,13 @@
+{
+  "name": "pathfitcapstone-admin-tools",
+  "version": "1.0.0",
+  "description": "Admin tools for PathFit Capstone project",
+  "private": true,
+  "scripts": {
+    "delete-user": "node lib/core/scripts/admin_delete_user.js",
+    "delete-all-users": "node lib/core/scripts/delete_all_users.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.1"
+  }
+}

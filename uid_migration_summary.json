@@ -1,0 +1,64 @@
+{
+  "timestamp": "2025-09-15T18:59:28.810Z",
+  "totalStudents": 11,
+  "createdUsers": 11,
+  "errors": 0,
+  "createdUsersList": [
+    {
+      "studentId": "student_1",
+      "uid": "TqCSAiSdEZaidQVMw6IGCa3cNVI3",
+      "email": "student.student_1@pathfit.edu"
+    },
+    {
+      "studentId": "student_2",
+      "uid": "ISzkeMUIowV39to1t2mD6OpUvYV2",
+      "email": "student.student_2@pathfit.edu"
+    },
+    {
+      "studentId": "student_3",
+      "uid": "Pb1K1NyDEEYNFoaHGuPPAcsjA912",
+      "email": "student.student_3@pathfit.edu"
+    },
+    {
+      "studentId": "student_10",
+      "uid": "pYH9PZoSiqZjx2tFFbNjBVw1Ff92",
+      "email": "student.student_10@pathfit.edu"
+    },
+    {
+      "studentId": "student_6",
+      "uid": "898ZznegTtfnovCTSnSivYQ12nH3",
+      "email": "student.student_6@pathfit.edu"
+    },
+    {
+      "studentId": "student_9",
+      "uid": "zRgLJ12k9kO1lEJlBzu6GADquQL2",
+      "email": "student.student_9@pathfit.edu"
+    },
+    {
+      "studentId": "student_5",
+      "uid": "odZDCLLKTQcQqFpH6XxEJv4XXeI2",
+      "email": "student.student_5@pathfit.edu"
+    },
+    {
+      "studentId": "student_4",
+      "uid": "e814025q5sMdlc6SqvrirxvULu53",
+      "email": "student.student_4@pathfit.edu"
+    },
+    {
+      "studentId": "student_8",
+      "uid": "W9L71aYbVHdpEM0vpme8uxWWlya2",
+      "email": "student.student_8@pathfit.edu"
+    },
+    {
+      "studentId": "student_7",
+      "uid": "wlPSH78Np8SRs5lp3A9QC1vmUyI3",
+      "email": "student.student_7@pathfit.edu"
+    },
+    {
+      "studentId": "all",
+      "uid": "O9TtvcVLk2VqrmGC70QJY7kU9xx1",
+      "email": "student.all@pathfit.edu"
+    }
+  ],
+  "errorsList": []
+}

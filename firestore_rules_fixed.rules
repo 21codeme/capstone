@@ -1,0 +1,256 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===== CORE USER MANAGEMENT =====
+    
+    // Users collection - CRITICAL FIX: Allow users to create their own document during registration
+    match /users/{userId} {
+      // Allow users to read/write their own data (including creation during registration)
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Instructors can read basic user info for their students (but only after user exists)
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // ===== TEST COLLECTION - ALLOW ALL AUTHENTICATED USERS =====
+    
+    // Test collection - allow all authenticated users for debugging
+    match /test/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ===== QUIZ SYSTEM =====
+    
+    // Quizzes collection - instructors can create/edit, students can read
+    match /quizzes/{quizId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+
+    // Targeted quiz database - only matching students and instructors can read
+    match /courseQuizzes/{quizId} {
+      allow create, update, delete: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+
+      allow read: if request.auth != null && (
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'
+        ) || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student' &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.course == resource.data.course &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.year == resource.data.year &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.section == resource.data.section
+        )
+      );
+    }
+
+    // Student quizzes collection - students can read their own, instructors can read all
+    match /studentQuizzes/{docId} {
+      allow read: if request.auth != null && 
+        (resource.data.studentId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+      allow create, update: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // Quiz attempts collection - students can read/write their own attempts, instructors can read all
+    match /quizAttempts/{docId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.studentId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+    }
+    
+    // ===== NOTIFICATION SYSTEM =====
+    
+    // Quiz notifications collection - students can read/write their own notifications
+    match /quizNotifications/{docId} {
+      allow read, write: if request.auth != null && 
+        resource.data.studentId == request.auth.uid;
+    }
+    
+    // General notifications collection - users can read their own, instructors can create
+    match /notifications/{docId} {
+      allow read: if request.auth != null && 
+        (resource.data.userId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+      allow create: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // ===== MODULE SYSTEM =====
+    
+    // Modules collection - everyone can read, instructors can create/edit
+    match /modules/{moduleId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // Student modules collection - ALL authenticated users can read
+    match /studentModules/{docId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // ===== SECTION MANAGEMENT =====
+    
+    // Sections collection - instructors can manage their own sections, students can read assigned sections
+    match /sections/{sectionId} {
+      allow read: if request.auth != null && 
+        (resource.data.instructorId == request.auth.uid || 
+         exists(/databases/$(database)/documents/sectionEnrollments/$(request.auth.uid + '_' + sectionId)));
+      allow create, update, delete: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // Sections collection query rules - instructors can query their own sections
+    match /sections {
+      allow list: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // Section enrollments - students can read their own, instructors can manage their sections
+    match /sectionEnrollments/{enrollmentId} {
+      allow read: if request.auth != null && 
+        (enrollmentId == request.auth.uid + '_' + resource.data.sectionId || 
+         (exists(/databases/$(database)/documents/sections/$(resource.data.sectionId)) &&
+          get(/databases/$(database)/documents/sections/$(resource.data.sectionId)).data.instructorId == request.auth.uid));
+      allow create, update, delete: if request.auth != null && 
+        (enrollmentId == request.auth.uid + '_' + resource.data.sectionId || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+    }
+    
+    // ===== STUDENT PROGRESS & ANALYTICS =====
+    
+    // Student progress collection - students can read their own, instructors can read their students'
+    match /studentProgress/{docId} {
+      allow read: if request.auth != null && 
+        (resource.data.studentId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+      allow create, update: if request.auth != null && 
+        (resource.data.studentId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+    }
+    
+    // ===== COURSE & CURRICULUM MANAGEMENT =====
+    
+    // Courses collection - everyone can read, instructors can manage their courses
+    match /courses/{courseId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // Course enrollments - students can read their own, instructors can manage their courses
+    match /courseEnrollments/{enrollmentId} {
+      allow read: if request.auth != null && 
+        (resource.data.studentId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/courses/$(resource.data.courseId)) &&
+          get(/databases/$(database)/documents/courses/$(resource.data.courseId)).data.instructorId == request.auth.uid));
+      allow create, update, delete: if request.auth != null && 
+        (resource.data.studentId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+    }
+    
+    // ===== ASSESSMENT & GRADING =====
+    
+    // Assignments collection - students can read assigned, instructors can manage
+    match /assignments/{assignmentId} {
+      allow read: if request.auth != null && 
+        (resource.data.instructorId == request.auth.uid || 
+         exists(/databases/$(database)/documents/assignmentSubmissions/$(request.auth.uid + '_' + assignmentId)));
+      allow create, update, delete: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+    }
+    
+    // Assignment submissions - students can manage their own, instructors can view all
+    match /assignmentSubmissions/{submissionId} {
+      allow read, write: if request.auth != null && 
+        (submissionId == request.auth.uid + '_' + resource.data.assignmentId || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+    }
+    
+    // ===== COMMUNICATION & FEEDBACK =====
+    
+    // Messages collection - users can read/write messages in conversations they're part of
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.senderId == request.auth.uid || 
+         resource.data.recipientId == request.auth.uid);
+    }
+    
+    // Conversations collection - users can read conversations they're part of
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.participants[request.auth.uid] != null);
+    }
+    
+    // ===== ACHIEVEMENTS & GAMIFICATION =====
+    
+    // Achievements collection - everyone can read, system can create
+    match /achievements/{achievementId} {
+      allow read: if request.auth != null;
+      allow create: if false; // Only system can create achievements
+    }
+    
+    // User achievements - users can read their own, instructors can read their students'
+    match /userAchievements/{docId} {
+      allow read: if request.auth != null && 
+        (resource.data.userId == request.auth.uid || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'));
+      allow create, update: if request.auth != null && 
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // ===== SYSTEM & ADMIN =====
+    
+    // System settings - only instructors can read
+    match /systemSettings/{settingId} {
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+      allow write: if false; // Only system can modify
+    }
+    
+    // Audit logs - only instructors can read
+    match /auditLogs/{logId} {
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor';
+      allow write: if false; // Only system can create logs
+    }
+    
+    // ===== DEFAULT RULE =====
+    
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

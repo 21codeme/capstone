@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-09-15T19:13:44.549Z",
+  "totalUsers": 9,
+  "successfullyUpdated": 9,
+  "errors": 0,
+  "updatedUsers": [
+    {
+      "uid": "898ZznegTtfnovCTSnSivYQ12nH3",
+      "email": "student.student_6@pathfit.edu"
+    },
+    {
+      "uid": "ISzkeMUIowV39to1t2mD6OpUvYV2",
+      "email": "student.student_2@pathfit.edu"
+    },
+    {
+      "uid": "O9TtvcVLk2VqrmGC70QJY7kU9xx1",
+      "email": "student.all@pathfit.edu"
+    },
+    {
+      "uid": "Pb1K1NyDEEYNFoaHGuPPAcsjA912",
+      "email": "student.student_3@pathfit.edu"
+    },
+    {
+      "uid": "STU20259944",
+      "email": "charlesmiembro24@gmail.com"
+    },
+    {
+      "uid": "TqCSAiSdEZaidQVMw6IGCa3cNVI3",
+      "email": "student.student_1@pathfit.edu"
+    },
+    {
+      "uid": "W9L71aYbVHdpEM0vpme8uxWWlya2",
+      "email": "student.student_8@pathfit.edu"
+    },
+    {
+      "uid": "e814025q5sMdlc6SqvrirxvULu53",
+      "email": "student.student_4@pathfit.edu"
+    },
+    {
+      "uid": "wlPSH78Np8SRs5lp3A9QC1vmUyI3",
+      "email": "student.student_7@pathfit.edu"
+    }
+  ],
+  "errorsList": []
+}
