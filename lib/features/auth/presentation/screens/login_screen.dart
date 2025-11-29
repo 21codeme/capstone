@@ -121,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
   
-  void _handleSignInResult(bool success, AuthProvider authProvider) {
+  void _handleSignInResult(bool success, AuthProvider authProvider) async {
     // Update loading and error states
     setState(() {
       _isLoading = false;
@@ -131,6 +131,17 @@ class _LoginScreenState extends State<LoginScreen> {
     print('🔐 LoginScreen: Sign in result: $success');
     print('🔐 LoginScreen: User data available: ${authProvider.currentUserModel != null}');
     print('🔐 LoginScreen: User role: ${authProvider.currentUserModel?.isStudent == true ? 'Student' : 'Instructor'}');
+    
+    // Wait for user data to be loaded (with timeout)
+    if (success && authProvider.currentUserModel == null) {
+      print('🔐 LoginScreen: Waiting for user data to load...');
+      int attempts = 0;
+      while (authProvider.currentUserModel == null && attempts < 10 && mounted) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        attempts++;
+      }
+      print('🔐 LoginScreen: User data loaded after $attempts attempts: ${authProvider.currentUserModel != null}');
+    }
     
     // Force navigation if user data is available, regardless of success flag
     if (authProvider.currentUserModel != null && mounted) {
@@ -144,6 +155,11 @@ class _LoginScreenState extends State<LoginScreen> {
           duration: Duration(seconds: 1),
         ),
       );
+      
+      // Small delay to ensure state is updated
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (!mounted) return;
       
       // Navigate based on role
       if (authProvider.isInstructor) {
@@ -164,6 +180,11 @@ class _LoginScreenState extends State<LoginScreen> {
           duration: Duration(seconds: 1),
         ),
       );
+      
+      // Small delay to ensure state is updated
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (!mounted) return;
       
       // Navigate based on role
       if (authProvider.isInstructor) {
@@ -221,19 +242,28 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                 const SizedBox(height: 40),
                 
-                // App Icon
+                // App Logo
                 Center(
                   child: Container(
-                    width: 80,
-                    height: 80,
+                    width: 120,
+                    height: 120,
                     decoration: BoxDecoration(
-                      color: AppColors.primaryBlue,
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    child: const Icon(
-                      Icons.fitness_center,
-                      color: Colors.white,
-                      size: 40,
+                    child: ClipOval(
+                      child: Image.asset(
+                        'pathfit_logo.png',
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 ),

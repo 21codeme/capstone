@@ -419,61 +419,75 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                   {'id': 'final_quiz_human_movement', 'label': 'Final'},
                 ];
 
-                return GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.95,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: topics.length,
-                  itemBuilder: (context, index) {
-                    final item = topics[index];
-                    final Color color = item['color'] as Color;
-                    final String label = item['label'] as String;
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenWidth = constraints.maxWidth;
+                    final isSmallScreen = screenWidth < 360;
+                    // Adjust aspect ratio for smaller screens to prevent overflow
+                    final aspectRatio = isSmallScreen ? 1.05 : 0.95;
+                    
+                    return GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: aspectRatio,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
                       ),
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: color.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(12),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: topics.length,
+                      itemBuilder: (context, index) {
+                        final item = topics[index];
+                        final Color color = item['color'] as Color;
+                        final String label = item['label'] as String;
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.lightViolet50, // Light violet background
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.lightViolet200.withOpacity(0.3), // Subtle violet border
+                              width: 1,
                             ),
-                            child: Icon(
-                              item['icon'] as IconData,
-                              color: color,
-                              size: 24,
-                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.lightViolet200.withOpacity(0.15), // Soft violet shadow
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            label,
-                            style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
+                          padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: isSmallScreen ? 40 : 44,
+                                height: isSmallScreen ? 40 : 44,
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.15), // Slightly more opacity for contrast
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  item['icon'] as IconData,
+                                  color: color,
+                                  size: isSmallScreen ? 20 : 24,
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 8 : 12),
+                              Flexible(
+                                child: Text(
+                                  label,
+                                  style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isSmallScreen ? 14 : null,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 6 : 8),
                           if (label == 'Understanding Movements') ...[
                             Wrap(
                               spacing: 8,
@@ -510,15 +524,22 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                               ],
                             ),
                           ] else ...[
-                            Text(
-                              'No quizzes yet',
-                              style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
+                            Flexible(
+                              child: Text(
+                                'No quizzes yet',
+                                style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontSize: isSmallScreen ? 11 : null,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ],
                       ),
+                    );
+                  },
                     );
                   },
                 );
@@ -627,6 +648,13 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                   completedDate = DateTime.tryParse(completedAt);
                 }
                 final String dateLabel = _formatDate(completedDate);
+                
+                // Get quizId - check multiple possible fields
+                final String? quizId = activity['quizId']?.toString() ?? 
+                                      activity['id']?.toString() ?? 
+                                      null;
+                
+                print('🔍 Quiz Activity: ${activity['title']}, quizId: $quizId, activity keys: ${activity.keys.toList()}');
 
                 return Column(
                   children: [
@@ -638,7 +666,8 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                       percentage: '${percentage.round()}%',
                       icon: Icons.assignment,
                       statusColor: scoreColor,
-                      onTap: () => _showActivityDetails(context),
+                      quizId: null, // Don't show button in card, show in dialog instead
+                      onTap: () => _showQuizDetailsDialog(context, activity),
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -682,6 +711,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                       percentage: '${percentage.round()}%',
                       icon: Icons.check_circle,
                       statusColor: scoreColor,
+                      quizId: null, // Not a quiz, so no button
                       onTap: () => _showActivityDetails(context),
                     ),
                     const SizedBox(height: 12),
@@ -883,86 +913,88 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
     required IconData icon,
     required Color statusColor,
     required VoidCallback onTap,
+    String? quizId, // Add quizId parameter
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: statusColor,
-              size: 24,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Text(
-                        'Score: $score',
-                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'â€¢',
-                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Percentage: $percentage',
-                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    timestamp,
-                    style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              status,
-              style: AppTextStyles.textTheme.titleMedium?.copyWith(
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
                 color: statusColor,
-                fontWeight: FontWeight.bold,
+                size: 24,
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          'Score: $score',
+                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          '•',
+                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Percentage: $percentage',
+                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      timestamp,
+                      style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                status,
+                style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -988,6 +1020,116 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Show quiz details dialog with View Review button
+  void _showQuizDetailsDialog(BuildContext context, Map<dynamic, dynamic> activity) {
+    final String title = activity['title']?.toString() ?? 'Quiz';
+    final double score = (activity['score'] ?? 0.0) as double;
+    final double maxScore = (activity['maxScore'] ?? 0.0) as double;
+    final double percentage = (activity['percentage'] ?? 0.0) as double;
+    
+    final dynamic completedAt = activity['completedAt'];
+    DateTime? completedDate;
+    if (completedAt is Timestamp) {
+      completedDate = completedAt.toDate();
+    } else if (completedAt is String) {
+      completedDate = DateTime.tryParse(completedAt);
+    }
+    final String dateLabel = _formatDate(completedDate);
+    
+    // Get quizId
+    final String? quizId = activity['quizId']?.toString() ?? 
+                          activity['id']?.toString() ?? 
+                          null;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Score: ${score.toStringAsFixed(0)}/${maxScore.toStringAsFixed(0)}',
+              style: AppTextStyles.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Percentage: ${percentage.toStringAsFixed(1)}%',
+              style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Date: $dateLabel',
+              style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Back'),
+          ),
+          if (quizId != null && quizId.isNotEmpty)
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog first
+                _navigateToQuizReview(context, activity);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('View Review'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Navigate to quiz review screen
+  void _navigateToQuizReview(BuildContext context, Map<dynamic, dynamic> activity) {
+    // Try multiple possible fields for quizId
+    final quizId = activity['quizId']?.toString() ?? 
+                   activity['id']?.toString() ?? 
+                   null;
+    
+    print('🔍 Navigating to quiz review. quizId: $quizId, activity keys: ${activity.keys.toList()}');
+    print('🔍 Full activity data: $activity');
+    
+    // Get the actual quizId from activity data (not from the parameter passed to _buildActivityCard)
+    final actualQuizId = activity['quizId']?.toString() ?? activity['id']?.toString();
+    
+    if (actualQuizId == null || actualQuizId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Quiz ID not found. Cannot review this quiz. Activity: ${activity['title']}'),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      '/quiz-review',
+      arguments: {
+        'quizId': quizId,
+        'quizTitle': activity['title']?.toString() ?? 'Quiz Review',
+        'score': activity['score'],
+        'maxScore': activity['maxScore'],
+        'percentage': activity['percentage'],
+      },
     );
   }
 

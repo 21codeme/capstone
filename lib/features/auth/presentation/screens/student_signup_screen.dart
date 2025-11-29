@@ -46,13 +46,8 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
 
   final List<String> _courseOptions = const [
     'Select course',
-    'BS Computer Science',
     'BS Information Technology',
-    'BS Information Systems',
-    'BS Computer Engineering',
-    'BS Data Science',
-    'BS Cybersecurity',
-    'BS Software Engineering',
+    'BS Midwifery',
   ];
 
   final List<String> _yearOptions = const [
@@ -61,7 +56,6 @@ class _StudentSignupScreenState extends State<StudentSignupScreen> {
     '2nd Year',
     '3rd Year',
     '4th Year',
-    '5th Year',
   ];
 
   final List<String> _sectionOptions = const [

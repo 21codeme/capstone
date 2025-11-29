@@ -175,23 +175,25 @@ class _SplashScreenState extends State<SplashScreen>
                     children: [
                     // Logo Circle
                     Container(
-                      width: 120,
-                      height: 120,
+                      width: 150,
+                      height: 150,
                       decoration: BoxDecoration(
-                        color: Colors.white,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 30,
+                            offset: const Offset(0, 15),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.fitness_center,
-                        size: 60,
-                        color: AppColors.primaryBlue,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'pathfit_logo.png',
+                          width: 150,
+                          height: 150,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                     

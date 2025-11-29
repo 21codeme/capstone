@@ -61,37 +61,111 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.surfaceWhite,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Upload Module',
+          style: AppTextStyles.textTheme.headlineSmall?.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Optional header to match Create Quiz screen style without blue AppBar
-            Text(
-              'Upload Module',
-              style: AppTextStyles.textTheme.titleLarge?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
+            // Header with gradient
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryBlue,
+                    AppColors.primaryBlue.withOpacity(0.8),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryBlue.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.textWhite.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.upload_file,
+                          color: AppColors.textWhite,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Create New Module',
+                              style: AppTextStyles.textTheme.titleLarge?.copyWith(
+                                color: AppColors.textWhite,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Upload your educational content',
+                              style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textWhite.withOpacity(0.9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 24),
+            
             // File Selection
             _buildFileSelection(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Module details (title, category, description)
             _buildModuleDetailsCard(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-          // Target audience (year level, section)
-          _buildTargetAudienceCard(),
-          const SizedBox(height: 16),
-
-            // Removed schedule selection per request
+            // Target audience (year level, section)
+            _buildTargetAudienceCard(),
             const SizedBox(height: 24),
 
             // Upload Button
             _buildUploadButton(),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -100,35 +174,90 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
   }
 
   Widget _buildFileSelection() {
-    return _SectionCard(
-      title: 'Select Module File',
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _selectedFile != null 
+              ? AppColors.successGreen.withOpacity(0.3)
+              : AppColors.primaryBlue.withOpacity(0.3),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (_selectedFile != null 
+                ? AppColors.successGreen 
+                : AppColors.primaryBlue).withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: AppColors.textBlack.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          Icon(
-            _selectedFile != null ? Icons.file_present : Icons.upload_file,
-            size: 48,
-            color: _selectedFile != null ? AppColors.successGreen : AppColors.primaryBlue,
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: (_selectedFile != null 
+                  ? AppColors.successGreen 
+                  : AppColors.primaryBlue).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _selectedFile != null ? Icons.check_circle : Icons.cloud_upload_outlined,
+              size: 64,
+              color: _selectedFile != null ? AppColors.successGreen : AppColors.primaryBlue,
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             _selectedFile != null ? 'File Selected' : 'Choose a file to upload',
-            style: AppTextStyles.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            style: AppTextStyles.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
-            _selectedFile != null ? _fileName : 'Accepted: PDF, DOC, PPT, MP4, MP3',
-            style: AppTextStyles.textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            _selectedFile != null ? _fileName : 'Accepted: PDF, DOC, DOCX, PPT, PPTX, MP4, MP3',
+            style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+            ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: _pickFile,
-            icon: Icon(_selectedFile != null ? Icons.change_circle : Icons.file_upload),
-            label: Text(_selectedFile != null ? 'Change File' : 'Browse Files'),
+            icon: Icon(
+              _selectedFile != null ? Icons.change_circle : Icons.folder_open,
+              size: 20,
+            ),
+            label: Text(
+              _selectedFile != null ? 'Change File' : 'Browse Files',
+              style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue,
+              backgroundColor: _selectedFile != null 
+                  ? AppColors.successGreen 
+                  : AppColors.primaryBlue,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 4,
             ),
           ),
         ],
@@ -196,73 +325,295 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
   }
 
   Widget _buildModuleDetailsCard() {
-    return _SectionCard(
-      title: 'Module Details',
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.grey200,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textBlack.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: AppColors.textBlack.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.description,
+                  color: AppColors.primaryBlue,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Module Details',
+                style: AppTextStyles.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
           _buildTextField(
             label: 'Module Title',
             hint: 'Enter module title',
             value: _moduleTitle,
             onChanged: (value) => setState(() => _moduleTitle = value),
+            icon: Icons.title,
           ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            value: _selectedCategory,
-            items: _categories.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList(),
-            onChanged: (val) => setState(() => _selectedCategory = val ?? _selectedCategory),
-            decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Module Category'),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
+          _buildCategoryDropdown(),
+          const SizedBox(height: 20),
           _buildTextField(
             label: 'Description (Optional)',
             hint: 'Enter module description',
             value: _description,
             onChanged: (value) => setState(() => _description = value),
             maxLines: 3,
+            icon: Icons.description,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           _buildTextField(
             label: 'Video URL (Optional)',
             hint: 'Enter video link (YouTube, Vimeo, etc.)',
             value: _videoUrl,
             onChanged: (value) => setState(() => _videoUrl = value),
             maxLines: 1,
+            icon: Icons.video_library,
           ),
         ],
       ),
     );
   }
 
+  Widget _buildCategoryDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Module Category',
+          style: AppTextStyles.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.grey300,
+              width: 1,
+            ),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            items: _categories.map((c) => DropdownMenuItem<String>(
+              value: c,
+              child: Text(
+                c,
+                style: AppTextStyles.textTheme.bodyMedium,
+              ),
+            )).toList(),
+            onChanged: (val) => setState(() => _selectedCategory = val ?? _selectedCategory),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primaryBlue,
+                  width: 2,
+                ),
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              prefixIcon: const Icon(
+                Icons.category,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+            icon: const Icon(
+              Icons.arrow_drop_down,
+              color: AppColors.primaryBlue,
+            ),
+            style: AppTextStyles.textTheme.bodyMedium,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTargetAudienceCard() {
-    return _SectionCard(
-      title: 'Target Audience',
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.grey200,
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textBlack.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: AppColors.textBlack.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Select year level and section. Course resolves automatically.',
-            style: AppTextStyles.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warningOrange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.people,
+                  color: AppColors.warningOrange,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Target Audience',
+                style: AppTextStyles.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          _buildYearLevelSelection(),
-          const SizedBox(height: 10),
-          _buildSectionSelection(),
-          if (_selectedCourse != null && _selectedYearLevel != null && _selectedSectionName != null) ...[
-            const SizedBox(height: 12),
-            Row(
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.blue50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.primaryBlue.withOpacity(0.2),
+              ),
+            ),
+            child: Row(
               children: [
-                Icon(Icons.check_circle, color: AppColors.primaryBlue),
+                Icon(
+                  Icons.info_outline,
+                  color: AppColors.primaryBlue,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
-                Flexible(
+                Expanded(
                   child: Text(
-                    'Selected: ${_selectedCourse} • ${_selectedYearLevel} • Section ${_selectedSectionName}',
-                    style: AppTextStyles.textTheme.bodyMedium,
-                    overflow: TextOverflow.ellipsis,
+                    'Select year level and section. Course resolves automatically.',
+                    style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                      color: AppColors.primaryBlue,
+                    ),
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildYearLevelSelection(),
+          const SizedBox(height: 20),
+          _buildSectionSelection(),
+          if (_selectedCourse != null && _selectedYearLevel != null && _selectedSectionName != null) ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.successGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.successGreen.withOpacity(0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.successGreen,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Selected Audience',
+                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_selectedCourse} • ${_selectedYearLevel} • Section ${_selectedSectionName}',
+                          style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ],
@@ -277,6 +628,7 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
     required String value,
     required Function(String) onChanged,
     int maxLines = 1,
+    IconData? icon,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,6 +642,8 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
         ),
         const SizedBox(height: 8),
         TextField(
+          controller: TextEditingController(text: value)
+            ..selection = TextSelection.collapsed(offset: value.length),
           onChanged: onChanged,
           maxLines: maxLines,
           decoration: InputDecoration(
@@ -297,16 +651,37 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
             hintStyle: AppTextStyles.textTheme.bodyMedium?.copyWith(
               color: AppColors.textSecondary,
             ),
+            prefixIcon: icon != null ? Icon(
+              icon,
+              color: AppColors.primaryBlue,
+            ) : null,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.divider),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: AppColors.grey300,
+                width: 1,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: AppColors.grey300,
+                width: 1,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.primaryBlue, width: 2),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: AppColors.primaryBlue,
+                width: 2,
+              ),
             ),
             filled: true,
             fillColor: AppColors.surface,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
           ),
         ),
       ],
@@ -378,32 +753,59 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
         ),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.divider),
-            borderRadius: BorderRadius.circular(8),
             color: AppColors.surface,
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              value: _selectedYearLevel,
-              isExpanded: true,
-              hint: const Text('Select year level'),
-              icon: Icon(Icons.arrow_drop_down, color: AppColors.primaryBlue),
-              items: levels.map((yl) => DropdownMenuItem<String?>(
-                    value: yl,
-                    child: Text(yl),
-                  )).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedYearLevel = newValue;
-                  // Reset section and course selection on year change
-                  _selectedSectionId = null;
-                  _selectedSectionName = null;
-                  _selectedCourse = null;
-                });
-              },
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.grey300,
+              width: 1,
             ),
+          ),
+          child: DropdownButtonFormField<String?>(
+            value: _selectedYearLevel,
+            isExpanded: true,
+            hint: const Text('Select year level'),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primaryBlue,
+                  width: 2,
+                ),
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              prefixIcon: const Icon(
+                Icons.calendar_today,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+            icon: const Icon(
+              Icons.arrow_drop_down,
+              color: AppColors.primaryBlue,
+            ),
+            items: levels.map((yl) => DropdownMenuItem<String?>(
+                  value: yl,
+                  child: Text(yl),
+                )).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedYearLevel = newValue;
+                // Reset section and course selection on year change
+                _selectedSectionId = null;
+                _selectedSectionName = null;
+                _selectedCourse = null;
+              });
+            },
           ),
         ),
       ],
@@ -428,36 +830,63 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
         ),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.divider),
-            borderRadius: BorderRadius.circular(8),
             color: AppColors.surface,
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              value: _selectedSectionName,
-              isExpanded: true,
-              hint: const Text('Select section'),
-              icon: Icon(Icons.arrow_drop_down, color: AppColors.primaryBlue),
-              items: sections.map((sec) => DropdownMenuItem<String?>(
-                    value: sec,
-                    child: Text(sec),
-                  )).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedSectionName = newValue;
-                  // Track a selection id to satisfy _canUpload; this is a sentinel
-                  _selectedSectionId = newValue == null
-                      ? null
-                      : 'ASSIGNED::' + _normalizeSectionToken(newValue).toUpperCase();
-                  // NEW: Resolve course from assignments mapping using selected year + section
-                  _selectedCourse = (_selectedYearLevel != null && newValue != null)
-                      ? _courseByYearSection['${_selectedYearLevel}::${newValue}']
-                      : null;
-                });
-              },
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.grey300,
+              width: 1,
             ),
+          ),
+          child: DropdownButtonFormField<String?>(
+            value: _selectedSectionName,
+            isExpanded: true,
+            hint: const Text('Select section'),
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primaryBlue,
+                  width: 2,
+                ),
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              prefixIcon: const Icon(
+                Icons.class_,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+            icon: const Icon(
+              Icons.arrow_drop_down,
+              color: AppColors.primaryBlue,
+            ),
+            items: sections.map((sec) => DropdownMenuItem<String?>(
+                  value: sec,
+                  child: Text(sec),
+                )).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedSectionName = newValue;
+                // Track a selection id to satisfy _canUpload; this is a sentinel
+                _selectedSectionId = newValue == null
+                    ? null
+                    : 'ASSIGNED::' + _normalizeSectionToken(newValue).toUpperCase();
+                // NEW: Resolve course from assignments mapping using selected year + section
+                _selectedCourse = (_selectedYearLevel != null && newValue != null)
+                    ? _courseByYearSection['${_selectedYearLevel}::${newValue}']
+                    : null;
+              });
+            },
           ),
         ),
       ],
@@ -470,33 +899,70 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
   }
 
   Widget _buildUploadButton() {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: _canUpload() && !_isLoading
+              ? [
+                  AppColors.primaryBlue,
+                  AppColors.primaryBlue.withOpacity(0.8),
+                ]
+              : [
+                  AppColors.grey300,
+                  AppColors.grey300,
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: _canUpload() && !_isLoading
+            ? [
+                BoxShadow(
+                  color: AppColors.primaryBlue.withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : [],
+      ),
       child: ElevatedButton(
-        onPressed: _canUpload() ? _uploadModule : null,
+        onPressed: _canUpload() && !_isLoading ? _uploadModule : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryBlue,
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: _isLoading
             ? const SizedBox(
-                height: 20,
-                width: 20,
+                height: 24,
+                width: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                  strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : Text(
-                'Upload Module',
-                style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.cloud_upload,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Upload Module',
+                    style: AppTextStyles.textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
       ),
     );

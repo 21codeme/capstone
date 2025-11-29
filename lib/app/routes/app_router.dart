@@ -16,6 +16,7 @@ import '../../features/dashboard/student/screens/presentation/screens/module_det
 import '../../features/dashboard/student/screens/presentation/screens/student_progress_screen.dart';
 import '../../features/dashboard/student/screens/presentation/screens/student_bmi_screen.dart';
 import '../../features/dashboard/student/screens/presentation/screens/student_quiz_view_screen.dart';
+import '../../features/dashboard/student/screens/presentation/screens/quiz_review_screen.dart';
 import '../../features/dashboard/student/screens/presentation/screens/movement_topics_screen.dart';
 import '../../features/dashboard/student/screens/presentation/screens/intro_basic_movements_screen.dart';
 import '../../features/dashboard/student/screens/presentation/screens/movement_relative_center_screen.dart';
@@ -98,6 +99,9 @@ class AppRouter {
   static const String studentIndividualProgress = '/student-individual-progress';
   static const String gradeStudent = '/grade-student';
   static const String sectionStudents = '/section-students';
+  
+  // Quiz review route
+  static const String quizReview = '/quiz-review';
   
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name ?? '') {
@@ -661,6 +665,36 @@ class AppRouter {
             requiredRole: 'student',
             fallbackRoute: '/login',
             child: StudentQuizViewScreen(quizId: quizId),
+          ),
+          settings: settings,
+        );
+      case AppRouter.quizReview:
+        final args = settings.arguments as Map<String, dynamic>?;
+        final quizId = args?['quizId'] as String?;
+        final quizTitle = args?['quizTitle'] as String? ?? 'Quiz Review';
+        final score = (args?['score'] as num?)?.toDouble() ?? 0.0;
+        final maxScore = (args?['maxScore'] as num?)?.toDouble() ?? 0.0;
+        final percentage = (args?['percentage'] as num?)?.toDouble() ?? 0.0;
+        
+        if (quizId == null || quizId.isEmpty) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(
+              body: Center(child: Text('Missing quizId for quiz review')),
+            ),
+            settings: settings,
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => RoleGuard(
+            requiredRole: 'student',
+            fallbackRoute: '/login',
+            child: QuizReviewScreen(
+              quizId: quizId,
+              quizTitle: quizTitle,
+              score: score,
+              maxScore: maxScore,
+              percentage: percentage,
+            ),
           ),
           settings: settings,
         );

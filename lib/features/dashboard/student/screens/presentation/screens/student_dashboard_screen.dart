@@ -673,42 +673,49 @@ bool _isLoadingSections = false;
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Welcome Section
-          Row(
-            children: [
-              // Profile Picture with Upload Button
-              Stack(
-                children: [
-                  _getStudentProfilePicture(user),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.lightBlue,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                // Profile Picture with Upload Button
+                Stack(
                   children: [
-                    Text(
-                      'Welcome back',
-                      style: AppTextStyles.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    Text(
-                      user?.fullName ?? 'Alex Johnson',
-                      style: AppTextStyles.textTheme.headlineSmall?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Ready to continue your fitness journey?',
-                      style: AppTextStyles.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
+                    _getStudentProfilePicture(user),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome back',
+                        style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        user?.fullName ?? 'Alex Johnson',
+                        style: AppTextStyles.textTheme.headlineSmall?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Ready to continue your fitness journey?',
+                        style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -727,11 +734,24 @@ bool _isLoadingSections = false;
                 return const SizedBox.shrink();
               }
 
+              // Normalize values for querying (trim and uppercase section for consistency)
+              final normalizedCourse = course.trim();
+              final normalizedYear = year.trim();
+              final normalizedSection = section.trim().toUpperCase();
+              final normalizedSectionLower = section.trim().toLowerCase();
+
+              // Debug logging
+              print('🔍 Querying quizzes for:');
+              print('   Course: "$normalizedCourse"');
+              print('   Year: "$normalizedYear"');
+              print('   Section: "$normalizedSection" (also trying "$normalizedSectionLower")');
+
+              // Query by course only to avoid composite index requirement
+              // Then filter by year and section on client side
+              // This is more flexible and doesn't require Firestore composite indexes
               final query = FirebaseFirestore.instance
                   .collection('courseQuizzes')
-                  .where('course', isEqualTo: course)
-                  .where('year', isEqualTo: year)
-                  .where('section', isEqualTo: section);
+                  .where('course', isEqualTo: normalizedCourse);
 
               return Container(
                 margin: const EdgeInsets.only(top: 24),
@@ -768,16 +788,80 @@ bool _isLoadingSections = false;
                       stream: query.snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
-                          return Row(
+                          // Log the actual error for debugging
+                          final error = snapshot.error;
+                          print('❌ Quiz query error: $error');
+                          print('   Course: "$normalizedCourse"');
+                          print('   Year: "$normalizedYear"');
+                          print('   Section: "$normalizedSection"');
+                          
+                          // Check if it's a missing index error
+                          final errorString = error.toString().toLowerCase();
+                          final isIndexError = errorString.contains('index') || 
+                                              errorString.contains('requires an index');
+                          
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.error_outline, color: AppColors.errorRed),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Failed to load quizzes',
-                                  style: AppTextStyles.textTheme.bodyMedium?.copyWith(color: AppColors.errorRed),
-                                ),
+                              Row(
+                                children: [
+                                  const Icon(Icons.error_outline, color: AppColors.errorRed),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Failed to load quizzes',
+                                      style: AppTextStyles.textTheme.bodyMedium?.copyWith(color: AppColors.errorRed),
+                                    ),
+                                  ),
+                                ],
                               ),
+                              if (isIndexError) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.orange50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: AppColors.warningOrange.withOpacity(0.3)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Firestore Index Required',
+                                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.warningOrange,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Please create a composite index in Firebase Console for:',
+                                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Collection: courseQuizzes\nFields: course, year',
+                                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                                          fontFamily: 'monospace',
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ] else ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Error: ${error.toString()}',
+                                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ],
                           );
                         }
@@ -785,16 +869,49 @@ bool _isLoadingSections = false;
                           return const Center(child: CircularProgressIndicator());
                         }
                         final docs = snapshot.data!.docs;
-                        // Filter by availability window on client to avoid index requirements
+                        print('📊 Found ${docs.length} quizzes for course "$normalizedCourse"');
+                        
+                        // Filter by year, section (case-insensitive), and availability window
                         final now = DateTime.now();
                         final availableDocs = docs.where((d) {
                           final data = d.data();
+                          
+                          // Filter by year
+                          final quizYear = (data['year'] as String? ?? '').trim();
+                          if (quizYear != normalizedYear) {
+                            print('   ❌ Year mismatch: quiz has "$quizYear", student has "$normalizedYear"');
+                            return false;
+                          }
+                          
+                          // Case-insensitive section matching
+                          final quizSection = (data['section'] as String? ?? '').trim();
+                          final sectionMatch = quizSection.toUpperCase() == normalizedSection ||
+                                              quizSection.toLowerCase() == normalizedSectionLower ||
+                                              quizSection == normalizedSection ||
+                                              quizSection == normalizedSectionLower;
+                          
+                          if (!sectionMatch) {
+                            print('   ❌ Section mismatch: quiz has "$quizSection", student has "$normalizedSection"');
+                            return false;
+                          }
+                          
+                          // Filter by availability window
                           final fromTs = data['availableFrom'] as Timestamp?;
                           final untilTs = data['availableUntil'] as Timestamp?;
-                          if (fromTs != null && now.isBefore(fromTs.toDate())) return false;
-                          if (untilTs != null && now.isAfter(untilTs.toDate())) return false;
+                          if (fromTs != null && now.isBefore(fromTs.toDate())) {
+                            print('   ⏰ Quiz not yet available: ${fromTs.toDate()}');
+                            return false;
+                          }
+                          if (untilTs != null && now.isAfter(untilTs.toDate())) {
+                            print('   ⏰ Quiz expired: ${untilTs.toDate()}');
+                            return false;
+                          }
+                          
+                          print('   ✅ Quiz matches: ${data['title']}');
                           return true;
                         }).toList();
+                        
+                        print('✅ Filtered to ${availableDocs.length} available quizzes');
                         if (availableDocs.isEmpty) {
                           return Row(
                             children: [
@@ -891,93 +1008,112 @@ bool _isLoadingSections = false;
                 },
               ];
 
-              return GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.95,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: topics.length,
-                itemBuilder: (context, index) {
-                  final item = topics[index];
-                  final Color color = item['color'] as Color;
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      final label = item['label'] as String;
-                      if (label == 'Understanding Movements') {
-                        Navigator.pushNamed(context, '/movement-topics');
-                      } else if (label == 'Musculoskeletal Basis') {
-                        Navigator.pushNamed(context, '/musculoskeletal-basis');
-                      } else if (label == 'Discrete Skills') {
-                        Navigator.pushNamed(context, '/discrete-skills');
-                      } else if (label == 'Throwing & Catching') {
-                        Navigator.pushNamed(context, '/throwing-catching');
-                      } else if (label == 'Serial Skills') {
-                        Navigator.pushNamed(context, '/serial-skills');
-                      } else if (label == 'Continuous Skills') {
-                        Navigator.pushNamed(context, '/continuous-skills');
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('$label coming soon')),
-                        );
-                      }
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: color.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              item['icon'] as IconData,
-                              color: color,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            item['label'] as String,
-                            style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Explore ${item['label']}.',
-                            style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenWidth = constraints.maxWidth;
+                  final isSmallScreen = screenWidth < 360;
+                  // Adjust aspect ratio for smaller screens to prevent overflow
+                  final aspectRatio = isSmallScreen ? 1.05 : 0.95;
+                  
+                  return GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: aspectRatio,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
                     ),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: topics.length,
+                    itemBuilder: (context, index) {
+                      final item = topics[index];
+                      final Color color = item['color'] as Color;
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          final label = item['label'] as String;
+                          if (label == 'Understanding Movements') {
+                            Navigator.pushNamed(context, '/movement-topics');
+                          } else if (label == 'Musculoskeletal Basis') {
+                            Navigator.pushNamed(context, '/musculoskeletal-basis');
+                          } else if (label == 'Discrete Skills') {
+                            Navigator.pushNamed(context, '/discrete-skills');
+                          } else if (label == 'Throwing & Catching') {
+                            Navigator.pushNamed(context, '/throwing-catching');
+                          } else if (label == 'Serial Skills') {
+                            Navigator.pushNamed(context, '/serial-skills');
+                          } else if (label == 'Continuous Skills') {
+                            Navigator.pushNamed(context, '/continuous-skills');
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('$label coming soon')),
+                            );
+                          }
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.lightViolet50, // Light violet background
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.lightViolet200.withOpacity(0.3), // Subtle violet border
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.lightViolet200.withOpacity(0.15), // Soft violet shadow
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: isSmallScreen ? 40 : 44,
+                                height: isSmallScreen ? 40 : 44,
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.15), // Slightly more opacity for contrast
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  item['icon'] as IconData,
+                                  color: color,
+                                  size: isSmallScreen ? 20 : 24,
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 8 : 12),
+                              Flexible(
+                                child: Text(
+                                  item['label'] as String,
+                                  style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isSmallScreen ? 14 : null,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 4 : 6),
+                              Flexible(
+                                child: Text(
+                                  'Explore',
+                                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontSize: isSmallScreen ? 11 : null,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               );
@@ -2304,11 +2440,15 @@ bool _isLoadingSections = false;
       width: isFullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.lightViolet50,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.lightViolet200.withOpacity(0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.violet.withOpacity(0.15),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -2387,11 +2527,15 @@ bool _isLoadingSections = false;
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.lightViolet50,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.lightViolet200.withOpacity(0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.violet.withOpacity(0.15),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),

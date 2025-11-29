@@ -5,6 +5,7 @@ import '../../../app/theme/text_styles.dart';
 import '../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../features/auth/data/models/user.dart';
 import '../../../core/services/profile_picture_service.dart';
+import '../../../core/services/firebase_auth_service.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 
@@ -32,6 +33,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   late TextEditingController _bioController;
   
   final ProfilePictureService _profilePictureService = ProfilePictureService();
+  final FirebaseAuthService _authService = FirebaseAuthService();
   File? _selectedImageFile;
   bool _isUpdatingProfile = false;
   
@@ -71,7 +73,24 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       
       _fullNameController.text = fullName;
       _emailController.text = user.email;
-      _bioController.text = '';
+      
+      // Load bio from Firebase directly to get the actual value
+      _loadBioFromFirebase(user.uid);
+    }
+  }
+  
+  /// Load bio field from Firebase user document
+  Future<void> _loadBioFromFirebase(String uid) async {
+    try {
+      final userData = await _authService.getUserData(uid);
+      if (userData != null) {
+        final bio = userData['bio']?.toString() ?? '';
+        if (mounted && _bioController.text.isEmpty) {
+          _bioController.text = bio;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading bio from Firebase: $e');
     }
   }
 
@@ -236,10 +255,20 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           }
           
           // Create updated user data
+          // Update fullName (used by dashboard) and also displayName for compatibility
+          final fullName = _fullNameController.text.trim();
+          final bio = _bioController.text.trim();
+          
           final updatedUserData = {
-            'displayName': _fullNameController.text.trim(),
+            'fullName': fullName,
+            'displayName': fullName, // Also update displayName for backward compatibility
             'profilePicture': updatedProfilePicture,
           };
+          
+          // Add bio if it's not empty
+          if (bio.isNotEmpty) {
+            updatedUserData['bio'] = bio;
+          }
           
           // Update profile
           final success = await authProvider.updateProfile(updatedUserData);
@@ -452,9 +481,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                           icon: Icons.description_outlined,
                           maxLines: 4,
                           validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Bio is required';
-                            }
+                            // Bio is optional, no validation needed
                             return null;
                           },
                         ),

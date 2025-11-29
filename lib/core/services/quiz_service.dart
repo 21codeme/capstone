@@ -29,7 +29,7 @@ class QuizService {
         'instructorId': instructorId,
         'course': course.trim(),
         'year': yearLevel.trim(),
-        'section': section.trim(),
+        'section': section.trim().toUpperCase(), // Normalize to uppercase for consistent matching
         'title': title.trim(),
         'instructions': (instructions ?? '').trim(),
         'timeLimitMinutes': timeLimitMinutes,
@@ -87,7 +87,7 @@ class QuizService {
         'instructorId': instructorId,
         'course': course.trim(),
         'year': yearLevel.trim(),
-        'section': section.trim(),
+        'section': section.trim().toUpperCase(), // Normalize to uppercase for consistent matching
         'title': title.trim(),
         'instructions': (instructions ?? '').trim(),
         'timeLimitMinutes': timeLimitMinutes,

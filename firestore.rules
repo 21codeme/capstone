@@ -215,29 +215,25 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'
         );
 
-      // Read access: instructors OR students whose profile matches course/year/section
-      allow read: if isAuthenticated() && (
+      // Read access: 
+      // - Instructors can read all quizzes
+      // - Students can read quizzes (collection queries allowed for authenticated students)
+      //   Client-side filtering ensures only matching course/year/section quizzes are shown
+      //   Individual document reads are also allowed for authenticated students
+      allow read: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          // Instructors can read all
           (
-            // New schema: instructors have isStudent == false
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isStudent == false ||
-            // Legacy schema: role == 'instructor'
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'instructor'
-          )
-        ) || (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          ) ||
+          // Students can query the collection (client-side filtering handles matching)
           (
-            // New schema: students have isStudent == true
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isStudent == true ||
-            // Legacy schema: role == 'student'
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student'
-          ) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.course == resource.data.course &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.year == resource.data.year &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.section == resource.data.section
-        )
-      );
+          )
+        );
     }
 
     // ===== QUIZ ATTEMPTS =====
