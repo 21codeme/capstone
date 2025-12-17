@@ -165,6 +165,7 @@ class QuizService {
 
       // Write a score record into studentScores for analytics/tracking
       // Use deterministic doc ID to enforce one record per student per quiz
+      // Also include detailed answers so instructors can view them
       final scoreRecord = {
         'studentId': studentId,
         if (studentName != null) 'studentName': studentName,
@@ -182,15 +183,81 @@ class QuizService {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': status,
         'hasAnswered': true,
+        'answers': answers, // Save detailed answers here too for instructor review
       };
 
       try {
+        print('💾 Saving to studentScores with answers...');
+        print('   Document ID: $lockDocId');
+        print('   Answers count: ${answers.length}');
+        print('   Answers preview: ${answers.take(2).toList()}');
+        
         await lockDocRef.set(scoreRecord, SetOptions(merge: true));
+        
+        // Verify it was saved with answers
+        final verifyScoreDoc = await lockDocRef.get();
+        if (verifyScoreDoc.exists) {
+          final verifyData = verifyScoreDoc.data() as Map<String, dynamic>?;
+          final savedAnswers = verifyData?['answers'];
+          if (savedAnswers != null && savedAnswers is List) {
+            print('✅ Successfully saved to studentScores with ${savedAnswers.length} answers');
+          } else {
+            print('❌ WARNING: Answers were not saved to studentScores!');
+            print('   Saved data keys: ${verifyData?.keys.toList()}');
+          }
+        }
       } catch (e) {
+        print('❌ Error saving to studentScores: $e');
         return {
           'success': false,
           'error': 'studentScores.set denied: ${e.toString()}',
         };
+      }
+
+      // Also save detailed attempt to quizAttempts for instructor review
+      // This is critical for instructor to view student answers
+      try {
+        if (answers.isEmpty) {
+          print('⚠️ Warning: No answers to save for quiz $quizId');
+        }
+        
+        final attemptData = {
+          'studentId': studentId,
+          'quizId': quizId,
+          'quizTitle': quizTitle,
+          'score': score,
+          'maxScore': maxScore,
+          'percentage': percentage,
+          'passed': passed,
+          'answers': answers, // Detailed answers for review
+          'timeTakenMinutes': timeTakenMinutes,
+          'submittedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'status': status,
+        };
+        
+        print('💾 Attempting to save to quizAttempts...');
+        print('   Student: $studentId');
+        print('   Quiz: $quizId');
+        print('   Title: $quizTitle');
+        print('   Answers count: ${answers.length}');
+        
+        final attemptRef = await _firestore.collection('quizAttempts').add(attemptData);
+        
+        // Verify it was saved
+        final verifyDoc = await attemptRef.get();
+        if (verifyDoc.exists) {
+          print('✅ Successfully saved quiz attempt to quizAttempts: ${attemptRef.id}');
+          print('   Verified: Document exists in database');
+        } else {
+          print('❌ ERROR: Document was not saved! Attempt ID: ${attemptRef.id}');
+        }
+      } catch (e, stackTrace) {
+        // Log error but don't fail the submission
+        print('❌ CRITICAL: Failed to save to quizAttempts: $e');
+        print('   Error type: ${e.runtimeType}');
+        print('   Stack trace: $stackTrace');
+        print('   This means instructor will NOT be able to view detailed answers!');
       }
 
       return {

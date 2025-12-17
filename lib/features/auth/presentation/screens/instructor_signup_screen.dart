@@ -58,21 +58,13 @@ class _InstructorSignupScreenState extends State<InstructorSignupScreen> {
   final List<String> _yearLevelSelectOptions = const [
     'Select year level',
     '1st Year',
-    '2nd Year',
-    '3rd Year',
-    '4th Year',
-    '5th Year',
   ];
 
   final List<String> _courseSelectOptions = const [
     'Select course',
-    'BS Computer Science',
     'BS Information Technology',
-    'BS Information Systems',
-    'BS Computer Engineering',
-    'BS Data Science',
-    'BS Cybersecurity',
-    'BS Software Engineering',
+    'BS Midwifery',
+    'CTE',
   ];
   
   final List<String> _genderOptions = const [

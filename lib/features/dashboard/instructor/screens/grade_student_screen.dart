@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pathfitcapstone/app/theme/colors.dart';
 import 'package:pathfitcapstone/app/theme/text_styles.dart';
 import 'package:pathfitcapstone/core/services/student_progress_service.dart';
+import 'instructor_quiz_review_screen.dart';
 
 class GradeStudentScreen extends StatefulWidget {
   final String studentName;
@@ -148,6 +149,7 @@ class _GradeStudentScreenState extends State<GradeStudentScreen> {
           'action': 'Quiz completed: ${data['quizTitle'] ?? 'Quiz'}',
           'date': _formatDateTime(timestamp),
           'score': '${data['score'] ?? 0}/${data['maxScore'] ?? 100}',
+          'quizId': data['quizId'], // Add quizId for navigation
         });
       }
 
@@ -939,44 +941,81 @@ class _GradeStudentScreenState extends State<GradeStudentScreen> {
   }
 
   Widget _buildActivityLogItem(Map<dynamic, dynamic> activity) {
+    final quizId = activity['quizId'] as String?;
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          Icon(
-            Icons.check_circle,
-            color: AppColors.primaryBlue,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  activity['action'],
-                  style: AppTextStyles.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: quizId != null
+              ? () => _navigateToQuizReview(quizId)
+              : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: AppColors.primaryBlue,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity['action'],
+                      style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      activity['date'],
+                      style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  activity['date'],
-                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
+              ),
+              Row(
+                children: [
+                  Text(
+                    activity['score'],
+                    style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.primaryBlue,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  if (quizId != null) ...[
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ),
-          Text(
-            activity['score'],
-            style: AppTextStyles.textTheme.bodyMedium?.copyWith(
-              color: AppColors.primaryBlue,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateToQuizReview(String quizId) async {
+    // Navigate to instructor quiz review screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InstructorQuizReviewScreen(
+          quizId: quizId,
+          studentId: widget.studentId,
+          studentName: widget.studentName,
+        ),
       ),
     );
   }

@@ -27,7 +27,6 @@ class FirebaseAuthService {
     String? course,
     String? year,
     String? section,
-  }) async {
     UserCredential? userCredential;
     
     try {
@@ -41,16 +40,12 @@ class FirebaseAuthService {
         throw FirebaseAuthException(
           code: 'email-already-in-use',
           message: 'The email address is already in use by another account.',
-        );
-      }
       
       // Validate password format
       if (password.length < 6) {
         throw FirebaseAuthException(
           code: 'weak-password',
           message: 'Password should be at least 6 characters',
-        );
-      }
       
       // Enforce isStudent based on the registration path
       // This ensures the isStudent value is correctly set regardless of what was passed
@@ -61,12 +56,9 @@ class FirebaseAuthService {
       if (currentRoute.contains('instructor_signup_screen.dart')) {
         print('📝 Enforcing instructor type (isStudent=false) based on registration path');
         isStudent = false;
-      } else if (currentRoute.contains('student_signup_screen.dart')) {
         print('📝 Enforcing student type (isStudent=true) based on registration path');
         isStudent = true;
-      } else {
         print('📝 Using provided isStudent value: $isStudent');
-      }
       
       // Step 1: Create Firebase Auth account
       print('🔐 Creating Firebase Auth account...');
@@ -74,11 +66,9 @@ class FirebaseAuthService {
       userCredential = await _auth.createUserWithEmailAndPassword(
         email: normalizedEmail,
         password: password,
-      );
       
       if (userCredential.user == null) {
         throw Exception('Failed to create Firebase Auth account');
-      }
       
       final userId = userCredential.user!.uid;
       print('✅ Firebase Auth account created successfully: $userId');
@@ -87,9 +77,7 @@ class FirebaseAuthService {
       try {
         await userCredential.user!.updateDisplayName(displayName);
         print('✅ Display name updated in Firebase Auth');
-      } catch (e) {
         print('⚠️ Warning: Could not update display name in Firebase Auth: $e');
-      }
       
       // Step 3: Prepare user data for Firestore
       final userData = <String, dynamic>{
@@ -103,18 +91,14 @@ class FirebaseAuthService {
         'phoneNumber': '',
         'accountStatus': 'active', // New field for account status
         'emailVerified': false,
-      };
       
       // Add optional fields
       if (lastName != null && lastName.trim().isNotEmpty) {
         userData['lastName'] = lastName.trim();
-      }
       if (age != null && age > 0) {
         userData['age'] = age;
-      }
       if (gender != null && gender.trim().isNotEmpty) {
         userData['gender'] = gender.trim();
-      }
 
       print('✅ User data prepared, saving to Firestore...');
 
@@ -125,26 +109,21 @@ class FirebaseAuthService {
         for (final entry in userData.entries) {
           if (entry.value != null) {
             sanitizedUserData[entry.key] = entry.value;
-          }
-        }
         
         print('📄 Sanitized user data: $sanitizedUserData');
         // Use Firebase Auth UID as document ID for proper sync
         final uid = userCredential.user!.uid;
         await _firestore.collection('users').doc(uid).set(sanitizedUserData);
         print('✅ User data saved to Firestore successfully with UID: $uid');
-      } catch (firestoreError) {
         print('❌ Error saving to Firestore: $firestoreError');
         print('❌ Firestore error type: ${firestoreError.runtimeType}');
         
         // Throw error for any Firestore save failure
         throw Exception('Failed to save user data to Firestore: $firestoreError');
-      }
       
       print('🎉 User registration completed successfully!');
       return userCredential;
 
-    } on FirebaseAuthException catch (e) {
       print('❌ Firebase Auth Error during registration: ${e.code} - ${e.message}');
       
       // Cleanup: Delete Firebase Auth account if it was created
@@ -153,13 +132,9 @@ class FirebaseAuthService {
           print('🧹 Cleaning up: Deleting Firebase Auth account...');
           await userCredential.user!.delete();
           print('✅ Firebase Auth account deleted successfully');
-        } catch (deleteError) {
           print('❌ Error deleting Firebase Auth account: $deleteError');
-        }
-      }
       
       rethrow;
-    } catch (e) {
       print('❌ Error during registration: $e');
       print('❌ Error type: ${e.runtimeType}');
       print('❌ Error details: ${e.toString()}');
@@ -170,14 +145,9 @@ class FirebaseAuthService {
           print('🧹 Cleaning up: Deleting Firebase Auth account...');
           await userCredential.user!.delete();
           print('✅ Firebase Auth account deleted successfully');
-        } catch (deleteError) {
           print('❌ Error deleting Firebase Auth account: $deleteError');
-        }
-      }
       
       rethrow;
-    }
-  }
 
   /// Get the correct document ID for a user
   /// Uses Firebase Auth UID as document ID for proper sync
@@ -185,11 +155,8 @@ class FirebaseAuthService {
     try {
       // Always use Firebase Auth UID as document ID for consistency
       return uid;
-    } catch (e) {
       print('❌ Error getting document ID: $e');
       return uid;
-    }
-  }
 
   // Sign in user with account status check and deleted account verification
   // Sign in user with email and password using student ID lookups
@@ -197,7 +164,6 @@ class FirebaseAuthService {
     required String email,
     required String password,
     int maxRetries = 3,
-  }) async {
     try {
       print('🔐 [AUTH] Starting sign in process for: $email');
       
@@ -205,11 +171,9 @@ class FirebaseAuthService {
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
-      );
 
       if (userCredential.user == null) {
         throw Exception('Sign in failed: User credential is null');
-      }
 
       // Use Firebase Auth UID for document lookup
       final uid = userCredential.user!.uid;
@@ -226,26 +190,21 @@ class FirebaseAuthService {
             // Sign out the user immediately
             await _auth.signOut();
             throw Exception('Account not verified. Please check your email for verification code.');
-          }
           
           if (accountStatus == 'inactive') {
             // Sign out the user immediately
             await _auth.signOut();
             throw Exception('Your account is inactive. Please contact support.');
-          }
           
           if (accountStatus != 'active') {
             // Sign out the user immediately
             await _auth.signOut();
             throw Exception('Account is not active. Please contact support.');
-          }
           
           // Update last login time using UID
           await _firestore.collection('users').doc(uid).update({
             'lastLogin': Timestamp.now(),
-          });
           print('✅ User document found and last login updated for UID: $uid');
-        } else {
           // Create user document if it doesn't exist (for existing auth users)
           await _firestore.collection('users').doc(uid).set({
             'uid': uid,
@@ -256,32 +215,20 @@ class FirebaseAuthService {
             'lastLogin': Timestamp.now(),
             'role': 'student',
             'isNewUser': true,
-          });
           print('✅ Created new user document for UID: $uid');
-        }
-      } catch (firestoreError) {
         print('⚠️ Error handling Firestore operations: $firestoreError');
         throw Exception('Error accessing user data: $firestoreError');
-      }
 
       return userCredential;
-    } on FirebaseAuthException catch (e) {
       print('❌ Firebase Auth Error during sign in: ${e.code} - ${e.message}');
       
       // Provide more user-friendly error messages
       if (e.code == 'user-not-found') {
         throw Exception('No user found with this email address.');
-      } else if (e.code == 'wrong-password') {
         throw Exception('Incorrect password. Please try again.');
-      } else if (e.code == 'user-disabled') {
         throw Exception('This account has been disabled. Please contact support.');
-      } else {
         throw Exception('Sign in failed: ${e.message}');
-      }
-    } catch (e) {
       throw Exception('Sign in failed: $e');
-    }
-  }
 
   // Secure sign out that terminates all active connections
   Future<void> signOut() async {
@@ -295,22 +242,16 @@ class FirebaseAuthService {
         _firestore.collection('users').doc(uid).update({
           'lastSeen': FieldValue.serverTimestamp(),
           'isOnline': false
-        }).catchError((e) {
-          print('?? Could not update user online status: $e');
-        });
-      }
       
       // Sign out from Firebase Auth immediately (this is the critical path)
       await _auth.signOut();
       
       // Note: After signOut(), currentUser will be null, so no need to check again
       
-      print('? User signed out successfully');
-    } catch (e) {
-      print('? Error signing out: $e');
+      
+      print('✅ User signed out successfully');
+      print('❌ Error signing out: $e');
       // Don't throw - just log, logout should still proceed
-    }
-  }
   
   // Clear all persistent data and cached credentials
   Future<void> clearPersistentData() async {
@@ -320,10 +261,7 @@ class FirebaseAuthService {
       if (currentUser != null) {
         try {
           await currentUser.getIdToken(true);
-        } catch (e) {
           print('⚠️ Error refreshing token: $e');
-        }
-      }
       
       // Clear shared preferences data
       try {
@@ -343,23 +281,16 @@ class FirebaseAuthService {
         // await prefs.clear();
         
         print('✅ Shared preferences cleared successfully');
-      } catch (e) {
         print('⚠️ Error clearing shared preferences: $e');
-      }
       
       // Sign out again to ensure token invalidation
       try {
         await _auth.signOut();
-      } catch (e) {
         print('⚠️ Secondary sign out during cleanup: $e');
-      }
       
       print('✅ Persistent data cleared successfully');
-    } catch (e) {
       print('❌ Error clearing persistent data: $e');
       // Don't throw - just log, logout should still proceed
-    }
-  }
 
   // Clear shared preferences asynchronously (non-blocking)
   Future<void> _clearSharedPreferences() async {
@@ -378,10 +309,7 @@ class FirebaseAuthService {
       ]);
       
       print('? Shared preferences cleared successfully');
-    } catch (e) {
       print('?? Error clearing shared preferences: $e');
-    }
-  }
 
   // Get user data from Firestore with enhanced error handling
   // Get user data from Firestore using UID
@@ -398,26 +326,17 @@ class FirebaseAuthService {
         // Ensure we return a Map, not a List
         if (data is Map<String, dynamic>) {
           return data;
-        } else if (data is Map) {
           Map<dynamic, dynamic> dynamicMap = data as Map<dynamic, dynamic>;
           final convertedData = Map<String, dynamic>.fromEntries(
             dynamicMap.entries.map((entry) => MapEntry(entry.key.toString(), entry.value))
-          );
           print('✅ Successfully converted data to Map<String, dynamic>');
           return convertedData;
-        } else {
           print('❌ Cannot convert data to Map: ${data.runtimeType}');
           return null;
-        }
-      } else {
         print('⚠️ User document not found for UID: $uid');
         return null;
-      }
-    } catch (e) {
       print('❌ Error getting user data: $e');
       return null;
-    }
-  }
 
   // Get user isStudent status from Firestore using UID
   Future<bool> getUserIsStudent(String uid) async {
@@ -435,8 +354,6 @@ class FirebaseAuthService {
           if (isStudent != null) {
             print('✅ User isStudent status retrieved by UID: $isStudent');
             return isStudent;
-          }
-        }
         
         // If isStudent doesn't exist, check for legacy role field
         final role = data?['role'] as String?;
@@ -449,34 +366,24 @@ class FirebaseAuthService {
           try {
             await _firestore.collection('users').doc(uid).update({
               'isStudent': isStudent,
-            });
             print('✅ Updated user document with isStudent: $isStudent');
-          } catch (updateError) {
             print('⚠️ Could not update user document: $updateError');
-          }
           
           return isStudent;
-        }
         
         print('✅ User found but no role specified, defaulting to student');
         return true; // Default to student if no role specified
-      } else {
         print('⚠️ User document not found for UID: $uid');
-      }
       
       print('⚠️ User document not found, using default isStudent: true');
       return true; // Default to student
-    } catch (e) {
       print('❌ Error getting user isStudent status: $e');
       return true; // Default to student on error
-    }
-  }
   
   // Legacy method for backward compatibility
   Future<String?> getUserRole(String uid) async {
     final isStudent = await getUserIsStudent(uid);
     return isStudent ? 'student' : 'instructor';
-  }
 
   // Check if user exists with improved method
   Future<bool> userExists(String email) async {
@@ -492,10 +399,8 @@ class FirebaseAuthService {
         await _auth.signInWithEmailAndPassword(
           email: normalizedEmail,
           password: 'invalid-password-for-checking-only',
-        );
         // If we get here, the user somehow signed in with our invalid password (shouldn't happen)
         return true;
-      } on FirebaseAuthException catch (authError) {
         // If error code is 'wrong-password', the email exists but password is wrong
         // If error code is 'user-not-found', the email doesn't exist
         final exists = authError.code == 'wrong-password';
@@ -505,31 +410,22 @@ class FirebaseAuthService {
           : '✅ User does not exist in Firebase Auth (${authError.code})');
         
         return exists;
-      }
       
-    } on FirebaseAuthException catch (e) {
       print('❌ Firebase Auth Error checking if user exists: ${e.code} - ${e.message}');
       return false;
-    } catch (e) {
       print('❌ Error checking if user exists: $e');
       return false;
-    }
-  }
 
   // Reset password
   Future<void> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
-    } catch (e) {
       throw Exception('Password reset failed: $e');
-    }
-  }
 
   // Update user profile with validation using UID
   Future<bool> updateUserProfile({
     required String uid,
     required Map<String, dynamic> data,
-  }) async {
     try {
       print('🔄 [PROFILE] Updating user profile for UID: $uid');
       
@@ -538,34 +434,26 @@ class FirebaseAuthService {
           data['role'] != 'student' && 
           data['role'] != 'instructor') {
         throw Exception('Invalid role: must be either student or instructor');
-      }
       
       if (data.containsKey('accountStatus') && 
           data['accountStatus'] != 'active' && 
           data['accountStatus'] != 'inactive') {
         throw Exception('Invalid account status: must be either active or inactive');
-      }
       
       // Update Firestore document using UID
       await _firestore.collection('users').doc(uid).update(data);
       print('✅ [PROFILE] User profile updated successfully for UID: $uid');
       return true;
       
-    } catch (e) {
       print('❌ [PROFILE] Error updating user profile: $e');
       return false;
-    }
-  }
 
   // Update user data in Firestore (alias for updateUserProfile)
   Future<bool> updateUserData(String uid, Map<String, dynamic> data) async {
     try {
       return updateUserProfile(uid: uid, data: data);
-    } catch (e) {
       print('❌ Error in updateUserData: $e');
       return false;
-    }
-  }
 
   // Note: getStudentIdByUid method removed - using UID directly now
   
@@ -576,15 +464,11 @@ class FirebaseAuthService {
       
       await _firestore.collection('users').doc(uid).update({
         'accountStatus': isActive ? 'active' : 'inactive',
-      });
       
       print('✅ [ACCOUNT] Account status updated successfully');
       return true;
-    } catch (e) {
       print('❌ [ACCOUNT] Error updating account status: $e');
       return false;
-    }
-  }
   
   // Delete account functionality removed
   
@@ -604,11 +488,8 @@ class FirebaseAuthService {
       
       print('✅ Found ${users.length} users with role: $role');
       return users;
-    } catch (e) {
       print('❌ Error getting users by role: $e');
       return [];
-    }
-  }
   
   // This method is already defined above, so we're removing the duplicate
   
@@ -627,36 +508,26 @@ class FirebaseAuthService {
       if (userQuery.docs.isNotEmpty) {
         print('✅ Email exists (found in Firestore)');
         return ['password']; // Indicate the user exists
-      }
       
       // Try to sign in with an invalid password to check if the email exists
       try {
         await _auth.signInWithEmailAndPassword(
           email: email,
           password: 'invalid-password-for-checking-only',
-        );
         // If we get here, the user somehow signed in with our invalid password (shouldn't happen)
         return ['password'];
-      } on FirebaseAuthException catch (authError) {
         // If error code is 'wrong-password', the email exists but password is wrong
         if (authError.code == 'wrong-password') {
           print('✅ Email exists (wrong-password error)');
           return ['password']; // Indicate the user exists with password auth
-        } else if (authError.code == 'invalid-credential' || authError.code == 'user-not-found') {
           // Now we're more confident the user doesn't exist
           print('✅ Email does not exist (${authError.code})');
           return [];
-        } else {
           // For other error codes, we can't be sure, so check Firestore
           print('⚠️ Uncertain auth error: ${authError.code}');
           return []; // Default to not existing
-        }
-      }
-    } catch (e) {
       print('❌ Error checking email existence: $e');
       return [];
-    }
-  }
   
   // Delete account functionality removed
   
@@ -669,7 +540,6 @@ class FirebaseAuthService {
         () => _auth.signInWithEmailAndPassword(
           email: email.trim(),
           password: password,
-        ),
         maxRetries: 3,
         initialDelayMs: 300,
         maxDelayMs: 3000,
@@ -686,24 +556,16 @@ class FirebaseAuthService {
                 error.code == 'user-disabled' ||
                 error.code == 'invalid-credential') {
               return false;
-            }
             // Don't retry App Check related errors
             if (error.code == 'app-check-failed' ||
                 error.toString().contains('App Check')) {
               return false;
-            }
-          }
           // Use default retry logic for other errors
           return RetryHelper.defaultShouldRetry(error);
-        },
-      );
       print('✅ User signed in successfully: ${userCredential.user!.uid}');
       return userCredential;
-    } catch (e) {
       print('❌ Error signing in user: $e');
       rethrow;
-    }
-  }
   
   // Update user document
   Future<bool> updateUserDocument(String uid, Map<String, dynamic> data) async {
@@ -712,11 +574,8 @@ class FirebaseAuthService {
       await _firestore.collection('users').doc(uid).update(data);
       print('✅ User document updated successfully');
       return true;
-    } catch (e) {
       print('❌ Error updating user document: $e');
       return false;
-    }
-  }
   
   // Create user document with student ID as document ID
   Future<bool> createUserDocument(
@@ -733,7 +592,6 @@ class FirebaseAuthService {
     String? year,
     String? section,
     double? bmi,
-  }) async {
     try {
       print('📝 Creating user document for UID: $uid');
       
@@ -746,7 +604,6 @@ class FirebaseAuthService {
         'createdAt': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
         'accountStatus': 'active',
-      };
       
       // Only add optional fields if they are not null
       if (firstName != null) userData['firstName'] = firstName;
@@ -762,11 +619,8 @@ class FirebaseAuthService {
       await _firestore.collection('users').doc(uid).set(userData);
       print('✅ User document created successfully with UID: $uid');
       return true;
-    } catch (e) {
       print('❌ Error creating user document: $e');
       return false;
-    }
-  }
   
   // Send password reset email
   Future<void> sendPasswordResetEmail(String email) async {
@@ -774,11 +628,8 @@ class FirebaseAuthService {
       print('📧 Sending password reset email to: $email');
       await _auth.sendPasswordResetEmail(email: email.trim());
       print('✅ Password reset email sent successfully');
-    } catch (e) {
       print('❌ Error sending password reset email: $e');
       rethrow;
-    }
-  }
 
   // Fetch sign-in methods for email
   Future<List<String>> fetchSignInMethods(String email) async {
@@ -788,11 +639,8 @@ class FirebaseAuthService {
       final methods = await fetchSignInMethodsForEmail(email.trim());
       print('✅ Found sign-in methods: $methods');
       return methods;
-    } catch (e) {
       print('❌ Error fetching sign-in methods: $e');
       rethrow;
-    }
-  }
 
 
   
@@ -803,11 +651,8 @@ class FirebaseAuthService {
       await user.updateDisplayName(displayName);
       print('✅ User display name updated successfully');
       return true;
-    } catch (e) {
       print('❌ Error updating user display name: $e');
       return false;
-    }
-  }
   
   // Create user with email and password
   Future<UserCredential> createUserWithEmailAndPassword(String email, String password) async {
@@ -817,7 +662,6 @@ class FirebaseAuthService {
         () => _auth.createUserWithEmailAndPassword(
           email: email.trim(),
           password: password,
-        ),
         maxRetries: 3,
         initialDelayMs: 300,
         maxDelayMs: 3000,
@@ -831,19 +675,12 @@ class FirebaseAuthService {
                 error.code == 'invalid-email' || 
                 error.code == 'weak-password') {
               return false;
-            }
-          }
           // Use default retry logic for other errors
           return RetryHelper.defaultShouldRetry(error);
-        },
-      );
       print('✅ User created successfully: ${userCredential.user!.uid}');
       return userCredential;
-    } catch (e) {
       print('❌ Error creating user: $e');
       rethrow;
-    }
-  }
   
   // Delete account functionality removed
 
@@ -864,15 +701,11 @@ class FirebaseAuthService {
         final studentId = data['studentId'] as String? ?? query.docs.first.id;
         print('✅ Found student ID: $studentId for email: $email');
         return studentId;
-      }
       
       print('⚠️ No student ID found for email: $email');
       return null;
-    } catch (e) {
       print('❌ Error getting student ID by email: $e');
       return null;
-    }
-  }
 
   // Get current user's student ID
   Future<String?> getCurrentStudentId() async {
@@ -882,9 +715,6 @@ class FirebaseAuthService {
       
       // Try to get student ID from email
       return await getStudentIdByEmail(authUser.email!);
-    } catch (e) {
       print('❌ Error getting current student ID: $e');
       return null;
-    }
-  }
 }

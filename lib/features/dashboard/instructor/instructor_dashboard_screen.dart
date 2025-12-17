@@ -8,6 +8,8 @@ import 'package:pathfitcapstone/core/services/section_service.dart';
 import 'package:pathfitcapstone/core/services/module_service.dart';
 import 'package:pathfitcapstone/features/auth/data/models/user_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'widgets/quiz_difficulty_pie_chart.dart';
+import 'screens/quiz_difficulty_analysis_screen.dart';
 
 class InstructorDashboardScreen extends StatefulWidget {
   const InstructorDashboardScreen({super.key});
@@ -39,6 +41,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     'missed': 0,
     'classProgress': 0,
     'moduleProgress': 0,
+    'studentProgress': 0,
+    'quizDifficultySegments': [],
     'recentModules': [
       {'name': 'Nutrition Basics', 'completion': 90, 'score': 82},
       {'name': 'Exercise Physiology', 'completion': 100, 'score': 75},
@@ -194,17 +198,422 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           ? totalAverageScore / sectionsWithStudents 
           : 78.0; // Default fallback
       
+      // Calculate missed students (those who didn't submit quizzes/activities on time)
+      final missedCount = await _calculateMissedStudents();
+      
+      // Calculate module completion (uploaded modules / 7 * 100)
+      final moduleCompletion = await _calculateModuleCompletion();
+      
+      // Calculate student progress (students who submitted quizzes / total students * 100)
+      final studentProgress = await _calculateStudentProgress(totalActiveStudents);
+      
+      // Calculate quiz difficulty segments
+      final quizDifficultySegments = await _calculateQuizDifficultySegments();
+      
       // Update dashboard data with real metrics
       setState(() {
         _dashboardData['activeStudents'] = totalActiveStudents;
         _dashboardData['averageScore'] = overallAverageScore.round();
-        _dashboardData['missed'] = totalActiveStudents > 0 ? (totalActiveStudents * 0.15).round() : 6; // Estimate 15% missed
+        _dashboardData['missed'] = missedCount;
         _dashboardData['classProgress'] = overallAverageScore.round();
-        _dashboardData['moduleProgress'] = overallAverageScore.round();
+        _dashboardData['moduleProgress'] = moduleCompletion; // Module completion percentage
+        _dashboardData['studentProgress'] = studentProgress; // Student progress percentage
+        _dashboardData['quizDifficultySegments'] = quizDifficultySegments;
       });
     } catch (e) {
       print('Error updating dashboard metrics: $e');
       // Keep default values if calculation fails
+    }
+  }
+
+  /// Calculate number of students who didn't submit quizzes/activities on time
+  Future<int> _calculateMissedStudents() async {
+    try {
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) return 0;
+
+      final firestore = FirebaseFirestore.instance;
+      final now = DateTime.now();
+      final Set<String> missedStudentIds = {};
+
+      // Get all quizzes created by this instructor
+      final quizzesSnapshot = await firestore
+          .collection('courseQuizzes')
+          .where('instructorId', isEqualTo: currentUser.uid)
+          .get();
+
+      for (final quizDoc in quizzesSnapshot.docs) {
+        final quizData = quizDoc.data();
+        final availableUntil = quizData['availableUntil'] as Timestamp?;
+        
+        if (availableUntil == null) continue; // No deadline, skip
+        
+        final deadline = availableUntil.toDate();
+        if (deadline.isAfter(now)) continue; // Deadline hasn't passed yet, skip
+
+        final quizId = quizDoc.id;
+        
+        // Get all students in instructor's sections
+        final studentIds = <String>[];
+        for (final section in _instructorSections) {
+          final course = section['course'] as String?;
+          final yearLevel = section['yearLevel'] as String?;
+          final sectionName = section['section'] as String?;
+          
+          if (course == null || yearLevel == null || sectionName == null) continue;
+          
+          // Get students matching this section
+          final studentsQuery = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'student')
+              .where('course', isEqualTo: course)
+              .where('year', isEqualTo: yearLevel)
+              .where('section', isEqualTo: sectionName)
+              .get();
+          
+          studentIds.addAll(studentsQuery.docs.map((doc) => doc.id));
+        }
+
+        // Check which students didn't submit before deadline
+        for (final studentId in studentIds) {
+          // Check if student submitted this quiz
+          final attemptsQuery = await firestore
+              .collection('quizAttempts')
+              .where('studentId', isEqualTo: studentId)
+              .where('quizId', isEqualTo: quizId)
+              .get();
+
+          bool submittedOnTime = false;
+          for (final attemptDoc in attemptsQuery.docs) {
+            final attemptData = attemptDoc.data();
+            final submittedAt = attemptData['submittedAt'] as Timestamp?;
+            
+            if (submittedAt != null && submittedAt.toDate().isBefore(deadline)) {
+              submittedOnTime = true;
+              break;
+            }
+          }
+
+          if (!submittedOnTime) {
+            missedStudentIds.add(studentId);
+          }
+        }
+      }
+
+      return missedStudentIds.length;
+    } catch (e) {
+      print('Error calculating missed students: $e');
+      return 0;
+    }
+  }
+
+  /// Calculate module completion percentage (uploaded modules / 7 * 100)
+  Future<int> _calculateModuleCompletion() async {
+    try {
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) return 0;
+
+      // Get all modules uploaded by this instructor
+      final modules = await _moduleService.getInstructorModules(currentUser.uid);
+      final uploadedCount = modules.length;
+      
+      // Calculate percentage: (uploaded / 7) * 100
+      final percentage = (uploadedCount / 7 * 100).round().clamp(0, 100);
+      return percentage;
+    } catch (e) {
+      print('Error calculating module completion: $e');
+      return 0;
+    }
+  }
+
+  /// Calculate student progress percentage (students who submitted quizzes / total students * 100)
+  Future<int> _calculateStudentProgress(int totalStudents) async {
+    try {
+      if (totalStudents == 0) return 0;
+
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) return 0;
+
+      final firestore = FirebaseFirestore.instance;
+      final Set<String> studentsWithSubmissions = {};
+
+      // Get all quizzes created by this instructor
+      final quizzesSnapshot = await firestore
+          .collection('courseQuizzes')
+          .where('instructorId', isEqualTo: currentUser.uid)
+          .get();
+
+      // Get all quiz attempts for these quizzes
+      for (final quizDoc in quizzesSnapshot.docs) {
+        final quizId = quizDoc.id;
+        final attemptsQuery = await firestore
+            .collection('quizAttempts')
+            .where('quizId', isEqualTo: quizId)
+            .get();
+
+        for (final attemptDoc in attemptsQuery.docs) {
+          final attemptData = attemptDoc.data();
+          final studentId = attemptData['studentId'] as String?;
+          
+          if (studentId != null) {
+            studentsWithSubmissions.add(studentId);
+          }
+        }
+      }
+
+      // Calculate percentage: (students with submissions / total students) * 100
+      final percentage = (studentsWithSubmissions.length / totalStudents * 100).round().clamp(0, 100);
+      return percentage;
+    } catch (e) {
+      print('Error calculating student progress: $e');
+      return 0;
+    }
+  }
+
+  /// Calculate quiz difficulty segments for pie chart
+  Future<List<PieChartSegment>> _calculateQuizDifficultySegments() async {
+    try {
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) {
+        print('❌ No current user for quiz difficulty calculation');
+        return [];
+      }
+
+      final firestore = FirebaseFirestore.instance;
+      final Map<String, Map<String, dynamic>> questionStats = {};
+
+      // FIRST: Get all students in instructor's sections
+      final Set<String> studentIds = {};
+      if (_instructorSections.isNotEmpty) {
+        print('👥 Getting students from instructor sections...');
+        for (final section in _instructorSections) {
+          final course = section['course'] as String?;
+          final yearLevel = section['yearLevel'] as String?;
+          final sectionName = section['section'] as String?;
+          
+          if (course == null || yearLevel == null || sectionName == null) continue;
+          
+          final studentsQuery = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'student')
+              .where('course', isEqualTo: course)
+              .where('year', isEqualTo: yearLevel)
+              .where('section', isEqualTo: sectionName)
+              .get();
+          
+          studentIds.addAll(studentsQuery.docs.map((doc) => doc.id));
+          print('📚 Section $course - $yearLevel $sectionName: ${studentsQuery.docs.length} students');
+        }
+        print('👥 Total students in instructor sections: ${studentIds.length}');
+      }
+
+      // Get all quizAttempts for these students
+      if (studentIds.isEmpty) {
+        print('⚠️ No students found in instructor sections');
+        return [];
+      }
+
+      print('🔍 Getting quizAttempts for ${studentIds.length} students...');
+      
+      // Query in batches (Firestore 'in' query limit is 10)
+      final studentIdsList = studentIds.toList();
+      final List<QueryDocumentSnapshot<Map<String, dynamic>>> allAttemptDocs = [];
+      
+      for (int i = 0; i < studentIdsList.length; i += 10) {
+        final batch = studentIdsList.skip(i).take(10).toList();
+        final attemptsQuery = await firestore
+            .collection('quizAttempts')
+            .where('studentId', whereIn: batch)
+            .get();
+
+        print('📋 Batch ${i ~/ 10 + 1}: Found ${attemptsQuery.docs.length} attempts');
+        allAttemptDocs.addAll(attemptsQuery.docs);
+      }
+
+      print('📊 Total quizAttempts found: ${allAttemptDocs.length}');
+
+      if (allAttemptDocs.isEmpty) {
+        print('⚠️ No quiz attempts found for students');
+        return [];
+      }
+
+      // Sample one attempt to see structure
+      if (allAttemptDocs.isNotEmpty) {
+        final sampleData = allAttemptDocs.first.data();
+        print('📋 Sample attempt structure: ${sampleData.keys.toList()}');
+        print('📋 Sample attempt quizId: ${sampleData['quizId']}');
+        print('📋 Sample attempt has answers: ${sampleData.containsKey('answers')}');
+        if (sampleData.containsKey('answers')) {
+          print('📋 Sample answers type: ${sampleData['answers'].runtimeType}');
+          if (sampleData['answers'] is List && (sampleData['answers'] as List).isNotEmpty) {
+            print('📋 Sample answer[0]: ${(sampleData['answers'] as List)[0]}');
+          }
+        }
+      }
+
+      // Group attempts by quizId to calculate average performance per quiz
+      final Map<String, List<Map<String, dynamic>>> attemptsByQuiz = {};
+      
+      for (final attemptDoc in allAttemptDocs) {
+        final attemptData = attemptDoc.data();
+        final quizId = attemptData['quizId'] as String?;
+        
+        if (quizId == null) continue;
+        
+        if (!attemptsByQuiz.containsKey(quizId)) {
+          attemptsByQuiz[quizId] = [];
+        }
+        
+        attemptsByQuiz[quizId]!.add(attemptData);
+      }
+
+      print('📊 Found ${attemptsByQuiz.length} unique quizzes with attempts');
+
+      // Process each quiz
+      for (final entry in attemptsByQuiz.entries) {
+        final quizId = entry.key;
+        final attempts = entry.value;
+
+        // Calculate average score for this quiz
+        double totalScore = 0.0;
+        double totalMaxScore = 0.0;
+        int validAttempts = 0;
+
+        for (final attempt in attempts) {
+          final score = (attempt['score'] as num?)?.toDouble();
+          final maxScore = (attempt['maxScore'] as num?)?.toDouble();
+          final percentage = (attempt['percentage'] as num?)?.toDouble();
+
+          if (score != null && maxScore != null && maxScore > 0) {
+            totalScore += score;
+            totalMaxScore += maxScore;
+            validAttempts++;
+          } else if (percentage != null) {
+            // Use percentage if score/maxScore not available
+            totalScore += percentage;
+            totalMaxScore += 100.0;
+            validAttempts++;
+          }
+        }
+
+        if (validAttempts == 0) continue;
+
+        final avgScore = totalScore / validAttempts;
+        final avgMaxScore = totalMaxScore / validAttempts;
+        final avgPercentage = avgMaxScore > 0 ? (avgScore / avgMaxScore * 100) : 0.0;
+        final wrongRate = 1.0 - (avgPercentage / 100.0);
+
+        // Try to get quiz to get question count, but don't fail if we can't
+        int questionCount = 10; // Default estimate
+        try {
+          final quizDoc = await firestore.collection('courseQuizzes').doc(quizId).get();
+          if (quizDoc.exists) {
+            final quizData = quizDoc.data() as Map<String, dynamic>?;
+            final questions = List<Map<String, dynamic>>.from(quizData?['questions'] ?? []);
+            if (questions.isNotEmpty) {
+              questionCount = questions.length;
+            }
+          }
+        } catch (e) {
+          // Permission denied or quiz not found - use default
+          print('⚠️ Cannot read quiz $quizId (may be from quizzes collection): using default question count');
+        }
+
+        print('📊 Quiz $quizId: ~$questionCount questions (estimated), ${validAttempts} attempts, avg score: ${avgPercentage.toStringAsFixed(1)}%');
+
+        // Distribute difficulty across all questions in this quiz
+        // If quiz has low average score, all questions are considered difficult
+        for (int i = 0; i < questionCount; i++) {
+          final questionKey = '${quizId}_$i';
+
+          if (!questionStats.containsKey(questionKey)) {
+            questionStats[questionKey] = {
+              'totalAttempts': 0,
+              'wrongAttempts': 0,
+            };
+          }
+
+          questionStats[questionKey]!['totalAttempts'] = validAttempts;
+          // Estimate wrong attempts based on average wrong rate
+          questionStats[questionKey]!['wrongAttempts'] = (wrongRate * validAttempts).round();
+        }
+      }
+
+      // Get all quizzes created by this instructor (for reference)
+      final quizzesSnapshot = await firestore
+          .collection('courseQuizzes')
+          .where('instructorId', isEqualTo: currentUser.uid)
+          .get();
+
+      print('📊 Found ${quizzesSnapshot.docs.length} quizzes for instructor');
+
+
+      print('📊 Total unique questions analyzed: ${questionStats.length}');
+
+      // Categorize questions by difficulty
+      int veryDifficult = 0;
+      int difficult = 0;
+      int moderate = 0;
+      int easy = 0;
+
+      questionStats.forEach((key, stats) {
+        final total = stats['totalAttempts'] as int;
+        if (total == 0) return;
+
+        final wrongRate = (stats['wrongAttempts'] as int) / total;
+
+        if (wrongRate >= 0.7) {
+          veryDifficult++;
+        } else if (wrongRate >= 0.5) {
+          difficult++;
+        } else if (wrongRate >= 0.3) {
+          moderate++;
+        } else {
+          easy++;
+        }
+      });
+
+      final total = questionStats.length;
+      print('📊 Difficulty breakdown: Very Difficult=$veryDifficult, Difficult=$difficult, Moderate=$moderate, Easy=$easy (Total=$total)');
+      
+      if (total == 0) {
+        print('⚠️ No questions with attempts found');
+        return [];
+      }
+
+      final segments = [
+        PieChartSegment(
+          label: 'Very Difficult',
+          value: veryDifficult,
+          color: Colors.red,
+          percentage: (veryDifficult / total * 100),
+        ),
+        PieChartSegment(
+          label: 'Difficult',
+          value: difficult,
+          color: Colors.orange,
+          percentage: (difficult / total * 100),
+        ),
+        PieChartSegment(
+          label: 'Moderate',
+          value: moderate,
+          color: Colors.blue,
+          percentage: (moderate / total * 100),
+        ),
+        PieChartSegment(
+          label: 'Easy',
+          value: easy,
+          color: Colors.green,
+          percentage: (easy / total * 100),
+        ),
+      ];
+
+      print('✅ Returning ${segments.length} pie chart segments');
+      return segments;
+    } catch (e, stackTrace) {
+      print('❌ Error calculating quiz difficulty segments: $e');
+      print('Stack trace: $stackTrace');
+      return [];
     }
   }
 
@@ -260,6 +669,225 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         'studentCount': 0,
         'averageGrade': 75,
       };
+    }
+  }
+
+  /// Show list of sections when Total Students is clicked
+  Future<void> _showSectionsList() async {
+    if (_instructorSections.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No sections assigned'),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sections'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _instructorSections.length,
+            itemBuilder: (context, index) {
+              final section = _instructorSections[index];
+              final sectionName = section['name'] as String? ?? 'Unknown Section';
+              final studentCount = section['students'] is int
+                  ? section['students'] as int
+                  : int.tryParse(section['students'].toString()) ?? 0;
+
+              return ListTile(
+                leading: const Icon(Icons.school, color: AppColors.primaryBlue),
+                title: Text(sectionName),
+                subtitle: Text('$studentCount students'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pushNamed(
+                    context,
+                    '/section-students',
+                    arguments: {
+                      'sectionName': sectionName,
+                      'courseName': section['course'],
+                      'yearLevel': section['yearLevel'],
+                      'section': section['section'],
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show list of missed students when Missed box is clicked
+  Future<void> _showMissedStudentsList() async {
+    try {
+      final missedStudents = await _getMissedStudentsWithSections();
+      
+      if (missedStudents.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No students missed submissions'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        return;
+      }
+
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Missed Students'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: missedStudents.length,
+              itemBuilder: (context, index) {
+                final student = missedStudents[index];
+                final studentName = student['name'] as String? ?? 'Unknown Student';
+                final section = student['section'] as String? ?? 'Unknown Section';
+
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.primaryBlue,
+                    child: Text(
+                      studentName.isNotEmpty ? studentName[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  title: Text(studentName),
+                  subtitle: Text('Section: $section'),
+                  trailing: const Icon(Icons.warning, color: AppColors.errorRed),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading missed students: ${e.toString()}'),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+    }
+  }
+
+  /// Get list of missed students with their section information
+  Future<List<Map<String, dynamic>>> _getMissedStudentsWithSections() async {
+    try {
+      final currentUser = _authService.currentUser;
+      if (currentUser == null) return [];
+
+      final firestore = FirebaseFirestore.instance;
+      final now = DateTime.now();
+      final Map<String, Map<String, dynamic>> missedStudentsMap = {};
+
+      // Get all quizzes created by this instructor
+      final quizzesSnapshot = await firestore
+          .collection('courseQuizzes')
+          .where('instructorId', isEqualTo: currentUser.uid)
+          .get();
+
+      for (final quizDoc in quizzesSnapshot.docs) {
+        final quizData = quizDoc.data();
+        final availableUntil = quizData['availableUntil'] as Timestamp?;
+        
+        if (availableUntil == null) continue; // No deadline, skip
+        
+        final deadline = availableUntil.toDate();
+        if (deadline.isAfter(now)) continue; // Deadline hasn't passed yet, skip
+
+        final quizId = quizDoc.id;
+        
+        // Get all students in instructor's sections
+        for (final section in _instructorSections) {
+          final course = section['course'] as String?;
+          final yearLevel = section['yearLevel'] as String?;
+          final sectionName = section['section'] as String?;
+          
+          if (course == null || yearLevel == null || sectionName == null) continue;
+          
+          // Get students matching this section
+          final studentsQuery = await firestore
+              .collection('users')
+              .where('role', isEqualTo: 'student')
+              .where('course', isEqualTo: course)
+              .where('year', isEqualTo: yearLevel)
+              .where('section', isEqualTo: sectionName)
+              .get();
+          
+          // Check which students didn't submit before deadline
+          for (final studentDoc in studentsQuery.docs) {
+            final studentId = studentDoc.id;
+            final studentData = studentDoc.data();
+            final displayName = studentData['displayName'] as String?;
+            final fullName = studentData['fullName'] as String?;
+            final firstName = studentData['firstName'] as String? ?? '';
+            final lastName = studentData['lastName'] as String? ?? '';
+            final studentName = displayName ?? 
+                               fullName ?? 
+                               (firstName.isNotEmpty || lastName.isNotEmpty 
+                                 ? '$firstName $lastName'.trim() 
+                                 : 'Unknown Student');
+            
+            // Check if student submitted this quiz
+            final attemptsQuery = await firestore
+                .collection('quizAttempts')
+                .where('studentId', isEqualTo: studentId)
+                .where('quizId', isEqualTo: quizId)
+                .get();
+
+            bool submittedOnTime = false;
+            for (final attemptDoc in attemptsQuery.docs) {
+              final attemptData = attemptDoc.data();
+              final submittedAt = attemptData['submittedAt'] as Timestamp?;
+              
+              if (submittedAt != null && submittedAt.toDate().isBefore(deadline)) {
+                submittedOnTime = true;
+                break;
+              }
+            }
+
+            if (!submittedOnTime) {
+              // Add to missed students map (avoid duplicates)
+              if (!missedStudentsMap.containsKey(studentId)) {
+                missedStudentsMap[studentId] = {
+                  'id': studentId,
+                  'name': studentName,
+                  'section': '$course - $yearLevel $sectionName',
+                };
+              }
+            }
+          }
+        }
+      }
+
+      return missedStudentsMap.values.toList();
+    } catch (e) {
+      print('Error getting missed students with sections: $e');
+      return [];
     }
   }
 
@@ -389,6 +1017,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             value: _dashboardData['activeStudents'].toString(),
             label: 'Total Students',
             color: AppColors.primaryBlue,
+            onTap: _showSectionsList,
           ),
         ),
         const SizedBox(width: 16),
@@ -399,6 +1028,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             value: _dashboardData['missed'].toString(),
             label: 'Missed',
             color: AppColors.primaryBlue,
+            onTap: _showMissedStudentsList,
           ),
         ),
       ],
@@ -410,41 +1040,49 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     required String value,
     required String label,
     required Color color,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.divider),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: AppTextStyles.textTheme.headlineSmall?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: AppTextStyles.textTheme.headlineSmall?.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: AppTextStyles.textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -477,32 +1115,40 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           const SizedBox(height: 20),
           Row(
             children: [
-              // Circular Progress
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: Stack(
-                  children: [
-                    SizedBox(
-                      width: 100,
-                      height: 100,
-                      child: CircularProgressIndicator(
-                        value: _dashboardData['classProgress'] / 100,
-                        strokeWidth: 8,
-                        backgroundColor: AppColors.divider,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
-                      ),
+              // Pie Chart
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const QuizDifficultyAnalysisScreen(),
                     ),
-                    Center(
-                      child: Text(
-                        '${_dashboardData['classProgress']}%',
-                        style: AppTextStyles.textTheme.titleLarge?.copyWith(
-                          color: AppColors.primaryBlue,
-                          fontWeight: FontWeight.bold,
+                  );
+                },
+                child: SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: (_dashboardData['quizDifficultySegments'] as List?)?.isNotEmpty == true
+                      ? QuizDifficultyPieChart(
+                          segments: List<PieChartSegment>.from(
+                            _dashboardData['quizDifficultySegments'] as List,
+                          ),
+                          size: 100,
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.surface,
+                          ),
+                          child: Center(
+                            child: Text(
+                              'No Data',
+                              style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
               const SizedBox(width: 24),
@@ -512,13 +1158,13 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                   children: [
                     _buildProgressBar(
                       label: 'Module Completion',
-                      percentage: _dashboardData['moduleProgress'],
+                      percentage: _dashboardData['moduleProgress'] as int,
                       color: Colors.green,
                     ),
                     const SizedBox(height: 16),
                     _buildProgressBar(
-                      label: 'Module Progress',
-                      percentage: _dashboardData['moduleProgress'],
+                      label: 'Student Progress',
+                      percentage: _dashboardData['studentProgress'] as int? ?? 0,
                       color: AppColors.primaryBlue,
                     ),
                   ],

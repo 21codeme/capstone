@@ -211,17 +211,26 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Secure sign out
+  // Secure sign out (optimized for speed)
   Future<void> signOut() async {
     if (_signOutInProgress) return;
     _signOutInProgress = true;
     try {
       _setLoading(true);
+      
+      // Clear local state immediately (no network call)
       _currentUser = null;
       _userData = null;
       _clearError();
+      
+      // Sign out from Firebase (this is the critical path)
       await _authService.signOut();
-      await _authService.clearPersistentData();
+      
+      // Clear persistent data in background (non-blocking)
+      _authService.clearPersistentData().catchError((e) {
+        print('⚠️ Error clearing persistent data: $e');
+      });
+      
       _setLoading(false);
     } catch (e) {
       _setError('Failed to sign out: $e');

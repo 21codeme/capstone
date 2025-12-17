@@ -8,6 +8,7 @@ import '../../../../core/services/firebase_auth_service.dart';
 import 'package:provider/provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/services/section_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ModuleUploadScreen extends StatefulWidget {
   const ModuleUploadScreen({super.key});
@@ -29,6 +30,7 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
   String _videoUrl = ''; // Video URL field
   DateTime? _dueDate;
   bool _isLoading = false;
+  bool _isPickingFile = false; // Flag to prevent multiple simultaneous file picker calls
 
   final List<String> _categories = [
     'Understanding Movements',
@@ -37,6 +39,7 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
     'Throwing & Catching',
     'Serial Skills',
     'Continuous Skills',
+    'Neuromuscular Basis of Movement Competency',
   ];
 
   // Section and Year Level selection state
@@ -237,13 +240,24 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: _pickFile,
-            icon: Icon(
-              _selectedFile != null ? Icons.change_circle : Icons.folder_open,
-              size: 20,
-            ),
+            onPressed: _isPickingFile ? null : _pickFile,
+            icon: _isPickingFile
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Icon(
+                    _selectedFile != null ? Icons.change_circle : Icons.folder_open,
+                    size: 20,
+                  ),
             label: Text(
-              _selectedFile != null ? 'Change File' : 'Browse Files',
+              _isPickingFile
+                  ? 'Opening file picker...'
+                  : (_selectedFile != null ? 'Change File' : 'Browse Files'),
               style: AppTextStyles.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -433,14 +447,27 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
           ),
           child: DropdownButtonFormField<String>(
             value: _selectedCategory,
+            isExpanded: true,
+            hint: Text(
+              'Select category',
+              style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
             items: _categories.map((c) => DropdownMenuItem<String>(
               value: c,
               child: Text(
                 c,
-                style: AppTextStyles.textTheme.bodyMedium,
+                style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                  color: Colors.black,
+                ),
               ),
             )).toList(),
-            onChanged: (val) => setState(() => _selectedCategory = val ?? _selectedCategory),
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _selectedCategory = val);
+              }
+            },
             decoration: InputDecoration(
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -469,7 +496,19 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
               Icons.arrow_drop_down,
               color: AppColors.primaryBlue,
             ),
-            style: AppTextStyles.textTheme.bodyMedium,
+            style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+              color: Colors.black,
+            ),
+            selectedItemBuilder: (BuildContext context) {
+              return _categories.map((String category) {
+                return Text(
+                  category,
+                  style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                    color: Colors.black,
+                  ),
+                );
+              }).toList();
+            },
           ),
         ),
       ],
@@ -969,23 +1008,218 @@ class _ModuleUploadScreenState extends State<ModuleUploadScreen> {
   }
 
   Future<void> _pickFile() async {
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: [
-          'pdf', 'doc', 'docx', 'ppt', 'pptx', 
-          'mp4', 'avi', 'mov', 'mp3', 'wav'
-        ],
-      );
+    // Prevent multiple simultaneous file picker calls
+    if (_isPickingFile) {
+      return;
+    }
 
-      if (result != null) {
-        setState(() {
-          _selectedFile = File(result.files.single.path!);
-          _fileName = result.files.single.name;
-        });
+    setState(() {
+      _isPickingFile = true;
+    });
+
+    try {
+      // Clear any existing file picker state first
+      try {
+        await FilePicker.platform.clearTemporaryFiles();
+      } catch (e) {
+        print('⚠️ Could not clear temporary files: $e');
+      }
+
+      // Request storage permissions for Android
+      if (Platform.isAndroid) {
+        bool hasPermission = await _requestStoragePermissions();
+        if (!hasPermission) {
+          _showMessage('Storage permission is required to select files. Please grant permission in app settings.', isError: true);
+          setState(() {
+            _isPickingFile = false;
+          });
+          return;
+        }
+      }
+
+      // Add a delay to ensure any previous picker is fully closed
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      FilePickerResult? result;
+      
+      try {
+        result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: [
+            'pdf', 'doc', 'docx', 'ppt', 'pptx', 
+            'mp4', 'avi', 'mov', 'mp3', 'wav'
+          ],
+          withData: false, // Don't load file data into memory
+          withReadStream: false, // Don't create read stream
+          allowMultiple: false, // Single file selection
+        ).timeout(
+          const Duration(seconds: 60),
+          onTimeout: () {
+            print('⏱️ File picker timeout');
+            return null;
+          },
+        );
+      } catch (pickerError) {
+        // Handle "already_active" error specifically
+        if (pickerError.toString().contains('already_active')) {
+          print('🔄 File picker already active, clearing and retrying...');
+          // Clear and wait a bit longer
+          await Future.delayed(const Duration(seconds: 1));
+          try {
+            await FilePicker.platform.clearTemporaryFiles();
+          } catch (e) {
+            print('⚠️ Error clearing: $e');
+          }
+          
+          // Retry once
+          await Future.delayed(const Duration(milliseconds: 500));
+          result = await FilePicker.platform.pickFiles(
+            type: FileType.custom,
+            allowedExtensions: [
+              'pdf', 'doc', 'docx', 'ppt', 'pptx', 
+              'mp4', 'avi', 'mov', 'mp3', 'wav'
+            ],
+            withData: true, // Load file data for real devices (handles content URIs)
+            withReadStream: false,
+            allowMultiple: false,
+          ).timeout(
+            const Duration(seconds: 60),
+            onTimeout: () => null,
+          );
+        } else {
+          rethrow;
+        }
+      }
+
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.single;
+        final fileName = pickedFile.name;
+        
+        print('📁 Selected file: $fileName');
+        print('📁 File path: ${pickedFile.path}');
+        print('📁 File size: ${pickedFile.size}');
+        print('📁 File extension: ${pickedFile.extension}');
+        
+        // Handle file path - on real devices, path might be null but bytes/data might be available
+        if (pickedFile.path != null && pickedFile.path!.isNotEmpty) {
+          final filePath = pickedFile.path!;
+          print('📁 Using file path: $filePath');
+          
+          final file = File(filePath);
+          
+          // Verify file exists before setting state
+          if (await file.exists()) {
+            print('✅ File exists at path: $filePath');
+            setState(() {
+              _selectedFile = file;
+              _fileName = fileName;
+            });
+            _showMessage('File selected: $fileName', isError: false);
+          } else {
+            print('❌ File does not exist at path: $filePath');
+            // Try to use bytes if available (for content URIs on real devices)
+            if (pickedFile.bytes != null) {
+              print('📦 Using file bytes instead of path');
+              // Save bytes to temporary file
+              final tempDir = await Directory.systemTemp.createTemp('module_upload');
+              final tempFile = File('${tempDir.path}/$fileName');
+              await tempFile.writeAsBytes(pickedFile.bytes!);
+              
+              setState(() {
+                _selectedFile = tempFile;
+                _fileName = fileName;
+              });
+              _showMessage('File selected: $fileName', isError: false);
+            } else {
+              _showMessage('Selected file does not exist and cannot be accessed', isError: true);
+            }
+          }
+        } else if (pickedFile.bytes != null) {
+          // On some devices, path might be null but bytes are available
+          print('📦 File path is null, using bytes instead');
+          try {
+            // Save bytes to temporary file
+            final tempDir = await Directory.systemTemp.createTemp('module_upload');
+            final tempFile = File('${tempDir.path}/$fileName');
+            await tempFile.writeAsBytes(pickedFile.bytes!);
+            
+            print('✅ Saved file to temp location: ${tempFile.path}');
+            setState(() {
+              _selectedFile = tempFile;
+              _fileName = fileName;
+            });
+            _showMessage('File selected: $fileName', isError: false);
+          } catch (e) {
+            print('❌ Error saving file bytes: $e');
+            _showMessage('Error accessing file: $e', isError: true);
+          }
+        } else {
+          print('❌ File path is null and bytes are not available');
+          _showMessage('File path is not available. Please try selecting the file again.', isError: true);
+        }
+      } else if (result == null) {
+        // User cancelled - don't show error
+        print('ℹ️ User cancelled file selection');
       }
     } catch (e) {
-      _showMessage('Error picking file: $e', isError: true);
+      String errorMessage = 'Error picking file';
+      
+      // Handle specific error types
+      if (e.toString().contains('already_active')) {
+        errorMessage = 'File picker is busy. Please wait a moment and try again.';
+      } else if (e.toString().contains('permission')) {
+        errorMessage = 'Storage permission denied. Please grant permission in app settings.';
+      } else if (e.toString().contains('timeout')) {
+        errorMessage = 'File picker timeout. Please try again.';
+      } else {
+        errorMessage = 'Error picking file: ${e.toString()}';
+      }
+      
+      _showMessage(errorMessage, isError: true);
+      print('❌ File picker error: $e');
+    } finally {
+      // Always reset the flag after picker closes
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _isPickingFile = false;
+          });
+        }
+      });
+    }
+  }
+
+  Future<bool> _requestStoragePermissions() async {
+    if (!Platform.isAndroid) return true; // iOS doesn't need explicit storage permission for file picker
+
+    try {
+      print('🔐 Requesting storage permissions for file picker...');
+      
+      // For Android 13+ (API 33+), file picker doesn't need explicit permissions
+      // But we can check if we have basic access
+      bool hasPermission = true;
+      
+      // For older Android versions, check storage permission
+      try {
+        final storageStatus = await Permission.storage.status;
+        if (storageStatus.isDenied) {
+          final result = await Permission.storage.request();
+          hasPermission = result.isGranted;
+        } else if (storageStatus.isGranted) {
+          hasPermission = true;
+        }
+      } catch (e) {
+        // On newer Android, storage permission might not be needed
+        print('ℹ️ Storage permission check not needed: $e');
+        hasPermission = true;
+      }
+      
+      print('✅ Storage permission status: $hasPermission');
+      return hasPermission;
+    } catch (e) {
+      print('❌ Error requesting storage permissions: $e');
+      // Return true to allow file picker to try anyway
+      return true;
     }
   }
 

@@ -816,11 +816,12 @@ class ModuleService {
       
       final categories = [
         'Understanding Movements',
-        'Musculoskeletal Basis', 
+        'Musculoskeletal Basis',
         'Discrete Skills',
         'Throwing & Catching',
         'Serial Skills',
         'Continuous Skills',
+        'Neuromuscular Basis of Movement Competency',
       ];
 
       Map<String, Map<String, dynamic>> categoryStats = {};

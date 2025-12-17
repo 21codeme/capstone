@@ -1613,6 +1613,11 @@ bool _isLoadingSections = false;
               final String dateLabel = completedDate != null
                   ? _getTimeAgo(completedDate)
                   : 'Recently';
+              
+              // Get quizId for View button
+              final String? quizId = activity['quizId']?.toString() ?? 
+                                    activity['id']?.toString() ?? 
+                                    null;
 
               return Column(
                 children: [
@@ -1622,12 +1627,17 @@ bool _isLoadingSections = false;
                     score: '${percentage.round()}%',
                     icon: Icons.assignment,
                     color: scoreColor,
+                    quizId: quizId,
+                    activity: activity,
                     onTap: () => _showActivityDetail(
                       context,
                       activity['title']?.toString() ?? 'Quiz',
                       '${percentage.toStringAsFixed(1)}%',
                       completedDate?.toLocal().toString() ?? 'N/A',
                     ),
+                    onViewTap: quizId != null && quizId.isNotEmpty
+                        ? () => _navigateToQuizReview(context, activity)
+                        : null,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -1708,6 +1718,34 @@ bool _isLoadingSections = false;
           ],
         ),
       ),
+    );
+  }
+
+  void _navigateToQuizReview(BuildContext context, Map<dynamic, dynamic> activity) {
+    final quizId = activity['quizId']?.toString() ?? 
+                   activity['id']?.toString() ?? 
+                   null;
+    
+    if (quizId == null || quizId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Quiz ID not found. Cannot review this quiz.'),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      '/quiz-review',
+      arguments: {
+        'quizId': quizId,
+        'quizTitle': activity['title']?.toString() ?? 'Quiz Review',
+        'score': activity['score'],
+        'maxScore': activity['maxScore'],
+        'percentage': activity['percentage'],
+      },
     );
   }
 
@@ -2727,8 +2765,6 @@ bool _isLoadingSections = false;
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -2744,78 +2780,51 @@ bool _isLoadingSections = false;
             ),
           ),
           
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
           
-          // Action buttons
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // View button
-              Container(
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blue),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: TextButton(
-                  onPressed: () {
-                    _viewModule(module);
-                  },
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text(
-                    'View',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+          // Three dots menu button
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.more_vert,
+              color: Colors.grey,
+              size: 24,
+            ),
+            onSelected: (value) {
+              if (value == 'view') {
+                _viewModule(module);
+              } else if (value == 'download') {
+                _downloadModule(module);
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'view',
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility, size: 20, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    const Text('View'),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              // Download button
-              Container(
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: _downloadingModules[module['id']] == true 
-                      ? Colors.grey 
-                      : Colors.blue,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: TextButton(
-                  onPressed: _downloadingModules[module['id']] == true 
-                      ? null 
-                      : () {
-                          _downloadModule(module);
-                        },
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: _downloadingModules[module['id']] == true
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Download',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+              PopupMenuItem<String>(
+                value: 'download',
+                enabled: _downloadingModules[module['id']] != true,
+                child: Row(
+                  children: [
+                    _downloadingModules[module['id']] == true
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                            ),
+                          )
+                        : const Icon(Icons.download, size: 20, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    const Text('Download'),
+                  ],
                 ),
               ),
             ],
@@ -3517,6 +3526,9 @@ class _ActivityCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback? onTap;
+  final String? quizId;
+  final Map<dynamic, dynamic>? activity;
+  final VoidCallback? onViewTap;
 
   const _ActivityCard({
     required this.title,
@@ -3525,6 +3537,9 @@ class _ActivityCard extends StatelessWidget {
     required this.icon,
     required this.color,
     this.onTap,
+    this.quizId,
+    this.activity,
+    this.onViewTap,
   });
 
   @override
@@ -3582,12 +3597,34 @@ class _ActivityCard extends StatelessWidget {
                 ],
               ),
             ),
-            Text(
-              score,
-              style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  score,
+                  style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (quizId != null && quizId!.isNotEmpty && onViewTap != null) ...[
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: onViewTap,
+                    icon: const Icon(Icons.visibility, size: 16),
+                    label: const Text('View'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: const Size(0, 32),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

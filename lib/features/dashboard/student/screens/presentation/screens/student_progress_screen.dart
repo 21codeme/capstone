@@ -666,7 +666,8 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                       percentage: '${percentage.round()}%',
                       icon: Icons.assignment,
                       statusColor: scoreColor,
-                      quizId: null, // Don't show button in card, show in dialog instead
+                      quizId: quizId, // Pass quizId to show View button
+                      activity: activity, // Pass full activity data for navigation
                       onTap: () => _showQuizDetailsDialog(context, activity),
                     ),
                     const SizedBox(height: 12),
@@ -712,6 +713,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                       icon: Icons.check_circle,
                       statusColor: scoreColor,
                       quizId: null, // Not a quiz, so no button
+                      activity: null, // Not a quiz activity
                       onTap: () => _showActivityDetails(context),
                     ),
                     const SizedBox(height: 12),
@@ -914,87 +916,116 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
     required Color statusColor,
     required VoidCallback onTap,
     String? quizId, // Add quizId parameter
+    Map<dynamic, dynamic>? activity, // Add activity data for navigation
   }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(
-                icon,
-                color: statusColor,
-                size: 24,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(
+                  icon,
+                  color: statusColor,
+                  size: 24,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            'Score: $score',
+                            style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '•',
+                            style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Percentage: $percentage',
+                            style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        timestamp,
+                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      title,
+                      status,
                       style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          'Score: $score',
-                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
+                    if (quizId != null && quizId.isNotEmpty && activity != null) ...[
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _navigateToQuizReview(context, activity);
+                        },
+                        icon: const Icon(Icons.visibility, size: 16),
+                        label: const Text('View'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: const Size(0, 32),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '•',
-                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Percentage: $percentage',
-                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      timestamp,
-                      style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
                       ),
-                    ),
+                    ],
                   ],
                 ),
-              ),
-              Text(
-                status,
-                style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
